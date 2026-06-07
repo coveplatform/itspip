@@ -7,5 +7,3 @@ venv/
 .venv/
 data/
 *.db
-*.json
-!giftfinder/**/*.json
