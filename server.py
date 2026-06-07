@@ -14,6 +14,7 @@ import os
 import re
 import secrets
 import sqlite3
+import tempfile
 import time
 from pathlib import Path
 
@@ -30,10 +31,31 @@ os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
 
 BASE = Path(__file__).parent
 WEB = BASE / "web"
-DATA = BASE / "data"
-DATA.mkdir(exist_ok=True)
+# Prefer ./data, but fall back to a writable temp dir on read-only hosts
+# (e.g. serverless platforms where the app directory can't be written).
+DATA = Path(os.environ.get("PIP_DATA_DIR", str(BASE / "data")))
+try:
+    DATA.mkdir(parents=True, exist_ok=True)
+except OSError:
+    DATA = Path(tempfile.gettempdir()) / "pip-data"
+    DATA.mkdir(parents=True, exist_ok=True)
 DB = DATA / "waitlist.db"
 SAMPLE_MBOX = BASE / "giftfinder" / "sample" / "demo.mbox"
+
+
+def _load_dotenv(path: Path) -> None:
+    """Load KEY=VALUE pairs from a local .env (gitignored) into the environment."""
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, val = line.split("=", 1)
+        os.environ.setdefault(key.strip(), val.strip().strip('"').strip("'"))
+
+
+_load_dotenv(BASE / ".env")
 
 # --- Google / Gmail (read-only) connect -----------------------------------
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
