@@ -88,29 +88,6 @@
   let CURRENT = null; // { scan_id, ... }
   let CHOSEN = "pro"; // default-selected tier (the upsell)
 
-  // Warm start: if the user is already connected this session, kick the dig off
-  // in the background the moment a valid email is typed, so it's already running
-  // (or finished) by the time they click. First-time visitors can't be warmed —
-  // they still have to pass through Google's read-only consent first.
-  let CONNECTED = false;
-  let PREFETCH = null;     // { email, jobId } of a background-started scan
-  let prefetchTimer = null;
-  fetch("/api/me").then((r) => r.json()).then((m) => { CONNECTED = !!m.connected; }).catch(() => {});
-
-  function maybePrefetch(email) {
-    if (!CONNECTED) return;
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return;
-    if (PREFETCH && PREFETCH.email === email) return;
-    fetch("/api/scan/start", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email, source: "gmail" }),
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (d && d.job_id) PREFETCH = { email: email, jobId: d.job_id }; })
-      .catch(() => {});
-  }
-
   const SCAN_MSGS = [
     "Cashew is rummaging…",
     "Sniffing out forgotten cards…",
@@ -197,22 +174,16 @@
     }, 2800);
     function stopWords() { clearInterval(wordTimer); }
 
-    // Use a background-started (prefetched) job if we have one for this email,
-    // otherwise start a fresh dig now.
-    const usePrefetch = PREFETCH && PREFETCH.email === email && PREFETCH.jobId;
-    const started = usePrefetch
-      ? Promise.resolve({ job_id: PREFETCH.jobId })
-      : fetch("/api/scan/start", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: email || "", source: "gmail" }),
-        }).then(async (r) => {
-          const d = await r.json();
-          if (!r.ok) throw new Error(d.error || "couldn't start the dig");
-          return d;
-        });
-    PREFETCH = null; // consume it
-    started
+    fetch("/api/scan/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email || "", source: "gmail" }),
+    })
+      .then(async (r) => {
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || "couldn't start the dig");
+        return d;
+      })
       .then((d) => poll(d.job_id))
       .catch((err) => {
         stopWords();
@@ -541,15 +512,6 @@
       ev.preventDefault();
       startDig(form);
     });
-    // warm the dig once the email looks complete (connected users only)
-    const emailInput = form.querySelector('input[type="email"]');
-    if (emailInput) {
-      emailInput.addEventListener("input", () => {
-        clearTimeout(prefetchTimer);
-        const v = (emailInput.value || "").trim();
-        prefetchTimer = setTimeout(() => maybePrefetch(v), 650);
-      });
-    }
   }
   wireDig($("#hero-form"));
   wireDig($("#cta-form"));
