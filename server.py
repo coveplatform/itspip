@@ -96,7 +96,10 @@ def _client_config() -> dict:
     }
 
 
-def _run_gmail_scan(creds_dict: dict, limit: int = 25) -> list:
+GMAIL_SCAN_LIMIT = int(os.environ.get("GMAIL_SCAN_LIMIT", "25"))
+
+
+def _run_gmail_scan(creds_dict: dict, limit: int = GMAIL_SCAN_LIMIT) -> list:
     """Fetch money-bearing mail read-only via the Gmail API and run detection.
 
     Emails are parsed and scored in memory and discarded — nothing is persisted.

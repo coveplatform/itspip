@@ -93,6 +93,41 @@
       <path fill="#FBBC04" d="M197.818 18.504V94.14L256 49.504V27.231c0-20.622-23.54-32.382-40-20z"/>
       <path fill="#C5221F" d="M0 49.504 58.182 94.14V18.504l-18.18-13.654C23.512-7.51 0 4.25 0 24.873z"/>
     </symbol>
+
+    <!-- ===== hand-drawn stash icons (match Pip's ink line) ===== -->
+    <symbol id="ic-giftcard" viewBox="0 0 48 48">
+      <rect x="6" y="13" width="36" height="25" rx="6" fill="#f2a15c" stroke="#6f3f20" stroke-width="3.5"/>
+      <rect x="6" y="20" width="36" height="5" fill="#6f3f20" opacity=".45"/>
+      <path d="M24 26 q5 -7 9 0 q0 5 -9 10 q-9 -5 -9 -10 q4 -7 9 0z" fill="#fff" stroke="#6f3f20" stroke-width="2"/>
+    </symbol>
+    <symbol id="ic-credit" viewBox="0 0 48 48">
+      <path d="M9 9 h16 a3 3 0 0 1 2.1 .9 l11 11 a3 3 0 0 1 0 4.2 l-13 13 a3 3 0 0 1 -4.2 0 l-11 -11 a3 3 0 0 1 -.9 -2.1 z"
+            fill="#8bbf6a" stroke="#6f3f20" stroke-width="3.5" stroke-linejoin="round"/>
+      <circle cx="17.5" cy="17.5" r="3.4" fill="#fff" stroke="#6f3f20" stroke-width="2.6"/>
+    </symbol>
+    <symbol id="ic-refund" viewBox="0 0 48 48">
+      <path d="M37 22 a13 13 0 1 1 -4.6 -9.6" fill="none" stroke="#6f3f20" stroke-width="3.6" stroke-linecap="round"/>
+      <path d="M38 8 l1.4 12 -12 -1.6z" fill="#6f3f20"/>
+      <text x="24" y="31" text-anchor="middle" font-family="Fredoka, sans-serif" font-weight="700" font-size="18" fill="#6f3f20">$</text>
+    </symbol>
+    <symbol id="ic-referral" viewBox="0 0 48 48">
+      <circle cx="32" cy="18" r="6" fill="#a9d6e5" stroke="#6f3f20" stroke-width="3"/>
+      <path d="M22 40 q0 -12 10 -12 q10 0 10 12z" fill="#a9d6e5" stroke="#6f3f20" stroke-width="3" stroke-linejoin="round"/>
+      <circle cx="16" cy="16" r="7" fill="#b97a45" stroke="#6f3f20" stroke-width="3"/>
+      <path d="M4 40 q0 -13 12 -13 q12 0 12 13z" fill="#b97a45" stroke="#6f3f20" stroke-width="3" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="ic-loyalty" viewBox="0 0 48 48">
+      <path d="M18 7 l6 11 M30 7 l-6 11" stroke="#e8615d" stroke-width="3.6" stroke-linecap="round"/>
+      <circle cx="24" cy="29" r="13" fill="#f4cf63" stroke="#6f3f20" stroke-width="3.5"/>
+      <path d="M24 22 l2.4 4.9 5.4 .8 -3.9 3.8 .9 5.4 -4.8 -2.5 -4.8 2.5 .9 -5.4 -3.9 -3.8 5.4 -.8z"
+            fill="#fff" stroke="#6f3f20" stroke-width="1.8" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="ic-expiring" viewBox="0 0 48 48">
+      <path d="M11 9 l-5 5 M37 9 l5 5" stroke="#6f3f20" stroke-width="3.6" stroke-linecap="round"/>
+      <circle cx="24" cy="27" r="14" fill="#fff" stroke="#6f3f20" stroke-width="3.6"/>
+      <path d="M24 27 v-8 M24 27 l6 4" stroke="#6f3f20" stroke-width="3.6" stroke-linecap="round" fill="none"/>
+      <circle cx="24" cy="27" r="1.8" fill="#6f3f20"/>
+    </symbol>
   </defs>
 </svg>
 
@@ -124,7 +159,6 @@
   <svg class="float f5" viewBox="0 0 40 40"><use href="#coin"/></svg>
 
   <div class="hero-copy">
-    <span class="kicker reveal">🐿️ free inbox treasure hunt</span>
     <h1 class="reveal d1">Dig up the <span class="hl">money</span> hiding in your inbox</h1>
     <p class="lead reveal d2">Forgotten gift cards, store credit, refunds and rewards are buried in your old emails. Pip sniffs them out in seconds.</p>
 
@@ -159,7 +193,7 @@
 <!-- ========================= SCANNING OVERLAY ========================= -->
 <div class="scanning" id="scanning" hidden>
   <div class="scan-inner">
-    <svg class="dig-pip" viewBox="0 0 200 210"><use href="#pip"/></svg>
+    <img class="dig-pip" src="pip.png" alt="" />
     <div class="dirt"><span></span><span></span><span></span><span></span><span></span></div>
     <p class="scan-msg" id="scan-msg">Pip is rummaging…</p>
   </div>
@@ -168,7 +202,7 @@
 <!-- ========================= RESULTS ========================= -->
 <section id="results" class="results" hidden>
   <div class="results-head reveal in">
-    <svg class="res-pip" viewBox="0 0 200 210"><use href="#pip"/></svg>
+    <img class="res-pip" src="pip.png" alt="" />
     <p class="res-kicker">Pip came back with something! <span class="sample-tag">sample inbox demo</span></p>
     <h2>He dug up <span id="res-count">7</span> stashes worth</h2>
     <div class="res-total">$<span id="res-total">245.57</span></div>
@@ -190,7 +224,7 @@
 
   <!-- unlocked banner -->
   <div class="unlocked-banner" id="unlocked-banner" hidden>
-    <svg class="ub-pip" viewBox="0 0 200 210"><use href="#pip"/></svg>
+    <img class="ub-pip" src="pip.png" alt="" />
     <div>
       <strong>Stash unlocked! 🎉</strong>
       <span id="ub-note">Every brand + how to claim it is revealed below.</span>
@@ -215,7 +249,9 @@
 </section>
 
 <!-- ========================= HOW ========================= -->
-<section id="how" class="how">
+<section id="how" class="how band band-green">
+  <svg class="sprig s1" viewBox="0 0 40 40"><use href="#leaf"/></svg>
+  <svg class="sprig s2" viewBox="0 0 40 44"><use href="#acorn"/></svg>
   <h2 class="section-title reveal">Three little steps. <span class="hl green">Zero effort.</span></h2>
   <div class="steps">
     <article class="step reveal">
@@ -241,22 +277,24 @@
 
 <!-- ========================= STASH ========================= -->
 <section id="stash" class="stash">
-  <h2 class="section-title reveal">What Pip digs up <span class="hl">🪙</span></h2>
+  <svg class="sprig s3" viewBox="0 0 40 40"><use href="#coin"/></svg>
+  <svg class="sprig s4" viewBox="0 0 40 40"><use href="#sparkle"/></svg>
+  <h2 class="section-title reveal">What Pip digs up <svg class="title-ico" viewBox="0 0 40 40"><use href="#coin"/></svg></h2>
   <p class="section-sub reveal">Turns out your inbox is less "junk drawer", more "piggy bank."</p>
   <div class="tiles">
-    <div class="tile reveal">🎁<h4>Gift cards</h4><p>The $25 eGift from a birthday three years ago.</p></div>
-    <div class="tile reveal d1">🛍️<h4>Store credit</h4><p>Returns that quietly became credit you never used.</p></div>
-    <div class="tile reveal d2">↩️<h4>Refund credits</h4><p>"We've credited your account" — and you scrolled past.</p></div>
-    <div class="tile reveal">👯<h4>Referral rewards</h4><p>Free money for that friend you signed up. Yours.</p></div>
-    <div class="tile reveal d1">⭐<h4>Loyalty points</h4><p>Points worth real cash, expiring while you sleep.</p></div>
-    <div class="tile reveal d2 alarm">⏰<h4>Expiring soon!</h4><p>Pip squeaks loudly before a single dollar vanishes.</p></div>
+    <div class="tile reveal"><svg class="tile-ico" viewBox="0 0 48 48"><use href="#ic-giftcard"/></svg><h4>Gift cards</h4><p>The $25 eGift from a birthday three years ago.</p></div>
+    <div class="tile reveal d1"><svg class="tile-ico" viewBox="0 0 48 48"><use href="#ic-credit"/></svg><h4>Store credit</h4><p>Returns that quietly became credit you never used.</p></div>
+    <div class="tile reveal d2"><svg class="tile-ico" viewBox="0 0 48 48"><use href="#ic-refund"/></svg><h4>Refund credits</h4><p>"We've credited your account" — and you scrolled past.</p></div>
+    <div class="tile reveal"><svg class="tile-ico" viewBox="0 0 48 48"><use href="#ic-referral"/></svg><h4>Referral rewards</h4><p>Free money for that friend you signed up. Yours.</p></div>
+    <div class="tile reveal d1"><svg class="tile-ico" viewBox="0 0 48 48"><use href="#ic-loyalty"/></svg><h4>Loyalty points</h4><p>Points worth real cash, expiring while you sleep.</p></div>
+    <div class="tile reveal d2 alarm"><svg class="tile-ico" viewBox="0 0 48 48"><use href="#ic-expiring"/></svg><h4>Expiring soon!</h4><p>Pip squeaks loudly before a single dollar vanishes.</p></div>
   </div>
 </section>
 
 <!-- ========================= PROMISE ========================= -->
 <section id="promise" class="promise">
   <div class="promise-card reveal">
-    <svg class="promise-pip" viewBox="0 0 200 210"><use href="#pip"/></svg>
+    <img class="promise-pip" src="pip.png" alt="" />
     <h2>The pinky promise <svg class="paw-ink" viewBox="0 0 40 40"><use href="#paw"/></svg></h2>
     <p class="handwriting">
       Everything happens on <u>your</u> computer.<br>
@@ -269,7 +307,9 @@
 </section>
 
 <!-- ========================= TESTIMONIALS ========================= -->
-<section class="loved">
+<section class="loved band band-warm">
+  <svg class="sprig s1" viewBox="0 0 40 44"><use href="#acorn"/></svg>
+  <svg class="sprig s2" viewBox="0 0 40 40"><use href="#leaf"/></svg>
   <h2 class="section-title reveal">Early diggers, very smug</h2>
   <div class="notes">
     <figure class="note n1 reveal"><span class="tape"></span>
@@ -309,7 +349,7 @@
   <svg class="float f6" viewBox="0 0 40 40"><use href="#coin"/></svg>
   <svg class="float f7" viewBox="0 0 40 44"><use href="#acorn"/></svg>
   <div class="cta-inner reveal">
-    <svg class="cta-pip" viewBox="0 0 200 210"><use href="#pip"/></svg>
+    <img class="cta-pip" src="pip.png" alt="" />
     <h2>Ready to dig up what's <span class="hl">already yours?</span></h2>
     <p>Join the dig. Pip will come find you the second he's ready.</p>
     <form class="join-form big" id="cta-form" novalidate>
@@ -323,7 +363,7 @@
 </main>
 
 <footer class="footer">
-  <svg class="foot-pip" viewBox="0 0 200 210"><use href="#pip"/></svg>
+  <img class="foot-pip" src="pip.png" alt="" />
   <p>Made with acorns &amp; good intentions.</p>
   <p class="foot-links"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="mailto:kris.engelhardt4@gmail.com">Contact</a></p>
   <p class="fine">© 2026 Pip · read-only · your codes stay yours</p>
