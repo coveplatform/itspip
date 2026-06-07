@@ -300,6 +300,9 @@ def google_start(request: Request):
         access_type="offline", include_granted_scopes="true", prompt="consent"
     )
     request.session["oauth_state"] = state
+    # PKCE: the library put a code_challenge in the URL, so we must send the
+    # matching verifier back at token-exchange time. Stash it in the session.
+    request.session["code_verifier"] = flow.code_verifier
     return RedirectResponse(auth_url)
 
 
@@ -311,9 +314,13 @@ def google_callback(request: Request):
     flow = Flow.from_client_config(
         _client_config(), scopes=GMAIL_SCOPES, redirect_uri=OAUTH_REDIRECT, state=state
     )
+    flow.code_verifier = request.session.get("code_verifier")
     try:
         flow.fetch_token(authorization_response=str(request.url))
-    except Exception:
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"[pip] oauth callback failed: {e!r}", flush=True)
         return RedirectResponse("/?gmail=error")
     creds = flow.credentials
     # Stored in the signed session cookie (not server memory) so it survives
