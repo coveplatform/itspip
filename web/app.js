@@ -193,6 +193,12 @@
     }
   }
 
+  function openLink(item) {
+    return item.link
+      ? '<a class="rc-open" href="' + item.link + '" target="_blank" rel="noopener">Open email →</a>'
+      : "";
+  }
+
   function teaserCard(item, isFree) {
     if (isFree) {
       const code = item.code_present
@@ -206,6 +212,7 @@
         '<div class="rc-brand">' + item.brand + "</div>" +
         '<div class="rc-redeem">' + item.redeem + "</div>" +
         code +
+        openLink(item) +
         "</div>"
       );
     }
@@ -336,6 +343,7 @@
       '<div class="rc-brand">' + item.brand + "</div>" +
       '<div class="rc-redeem">' + item.redeem + "</div>" +
       code + exp +
+      openLink(item) +
       "</div>"
     );
   }

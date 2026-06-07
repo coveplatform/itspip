@@ -236,6 +236,21 @@ def _redeem_hint(brand: str, kind: str) -> str:
     return f"Open your {brand} account to claim it."
 
 
+def _gmail_link(message_id: str, subject: str) -> str:
+    """A link that opens the exact source email in Gmail."""
+    import urllib.parse
+
+    mid = (message_id or "").strip().strip("<>")
+    if mid:
+        return (
+            "https://mail.google.com/mail/u/0/#search/"
+            + urllib.parse.quote("rfc822msgid:" + mid)
+        )
+    return "https://mail.google.com/mail/u/0/#search/" + urllib.parse.quote(
+        subject or "gift card"
+    )
+
+
 def _to_dict(f) -> dict:
     return {
         "kind": f.kind,
@@ -246,6 +261,7 @@ def _to_dict(f) -> dict:
         "code_present": f.code_present,
         "expires_text": f.expires_text,
         "redeem": _redeem_hint(f.brand, f.kind),
+        "link": _gmail_link(getattr(f, "message_id", ""), f.subject),
     }
 
 

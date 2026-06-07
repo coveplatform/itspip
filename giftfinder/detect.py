@@ -66,6 +66,22 @@ MARKETING_SIGNALS = [
     "discount code", "coupon",
 ]
 
+# If any of these appear, it isn't held consumer money — drop the email outright.
+HARD_EXCLUDE = [
+    # lottery / sweepstakes / phishing "WIN a $X gift card"
+    "win a ", "win one", "win up to", "you could win", "chance to win",
+    "enter to win", "sweepstake", "prize draw", "raffle", "you've won",
+    "youve won", "lucky winner", "in the draw", "to win",
+    # prepaid service / developer account balances (Twilio, OpenAI, etc.)
+    "running low", "recharge", "auto-recharge", "auto reload", "top up",
+    "top-up", "we charged", "bring the balance", "balance is currently",
+    "add funds", "add credit", "api credit", "usage this month",
+    # course / event / subscription sales (Grant Cardone, 10x, OddsJam, etc.)
+    "enrol", "enroll", "masterclass", "webinar", "your seat", "payment plan",
+    "early bird", "challenge starts", "cart closes", "doors close",
+    "subscription", "free trial", "renew your", "your plan",
+]
+
 # Amounts right after these words are offers/discounts, not held balances.
 AMOUNT_SKIP_BEFORE = ("up to", "upto", "save", "spend", "earn up to", "as much as")
 
@@ -107,8 +123,18 @@ CODE_RE = re.compile(
     r"|\b(?:code|pin|claim code)\b[:\s]+[A-Z0-9]{6,}",  # code: XXXXXX
     re.IGNORECASE,
 )
+# Only capture an expiry when it's followed by a real date / relative phrase —
+# never an arbitrary sentence fragment.
 EXPIRY_RE = re.compile(
-    r"expir\w*(?:\s+on|\s+date|\s+by)?[:\s]+([A-Za-z0-9][A-Za-z0-9 ,/\.\-]{4,22})",
+    r"expir\w*\s+(?:on\s+|by\s+|date[:\s]+|in\s+)?("
+    r"today|tomorrow|soon|"
+    r"in \d+ (?:hours?|days?|weeks?|months?)|"
+    r"\d+ (?:hours?|days?|weeks?|months?)|"
+    r"(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*|"
+    r"\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?|"
+    r"\d{1,2}[ -](?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*(?:[ ,-]+\d{2,4})?|"
+    r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2}(?:,?\s*\d{4})?"
+    r")",
     re.IGNORECASE,
 )
 
@@ -175,6 +201,10 @@ def detect(email: Email, min_confidence: float = 0.45) -> Optional[Finding]:
     """Return a Finding only if the email holds real, recoverable money."""
     text = f"{email.subject}\n{email.body}"
     text_lower = text.lower()
+
+    # Outright junk: lottery/phishing, prepaid service balances, course sales.
+    if _contains_any(text_lower, HARD_EXCLUDE):
+        return None
 
     kind = _classify(text_lower)
     if kind is None:
