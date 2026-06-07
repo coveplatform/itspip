@@ -199,6 +199,12 @@
       : "";
   }
 
+  function balanceLink(item) {
+    return item.balance_url
+      ? '<a class="rc-balance" href="' + item.balance_url + '" target="_blank" rel="noopener">Check balance →</a>'
+      : "";
+  }
+
   function teaserCard(item, isFree) {
     if (isFree) {
       const code = item.code_present
@@ -212,7 +218,7 @@
         '<div class="rc-brand">' + item.brand + "</div>" +
         '<div class="rc-redeem">' + item.redeem + "</div>" +
         code +
-        openLink(item) +
+        '<div class="rc-links">' + openLink(item) + balanceLink(item) + "</div>" +
         "</div>"
       );
     }
@@ -343,7 +349,7 @@
       '<div class="rc-brand">' + item.brand + "</div>" +
       '<div class="rc-redeem">' + item.redeem + "</div>" +
       code + exp +
-      openLink(item) +
+      '<div class="rc-links">' + openLink(item) + balanceLink(item) + "</div>" +
       "</div>"
     );
   }

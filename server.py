@@ -25,6 +25,7 @@ import store
 from giftfinder.detect import detect
 from giftfinder.report import dedupe
 from giftfinder.sources import email_from_bytes, iter_mbox
+from giftfinder.verify import active_model, active_provider, verification_enabled, verify_finding
 
 os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
 
@@ -112,6 +113,20 @@ def _client_config() -> dict:
 GMAIL_SCAN_LIMIT = int(os.environ.get("GMAIL_SCAN_LIMIT", "25"))
 
 
+def _detect(email):
+    """Keyword detect → Claude precision gate. Returns a Finding or None.
+
+    The keyword pass is high-recall; `verify_finding` is the final judge that
+    kills marketing dangles ("win a $300 gift card") the keywords miss. When no
+    ANTHROPIC_API_KEY is set, verify_finding is a no-op and the keyword verdict
+    stands.
+    """
+    f = detect(email, min_confidence=0.45)
+    if f is None:
+        return None
+    return verify_finding(email, f)
+
+
 def _run_gmail_scan(creds_dict: dict, limit: int = GMAIL_SCAN_LIMIT) -> list:
     """Fetch money-bearing mail read-only via the Gmail API and run detection.
 
@@ -142,7 +157,7 @@ def _run_gmail_scan(creds_dict: dict, limit: int = GMAIL_SCAN_LIMIT) -> list:
                 .execute()
             )
             raw = base64.urlsafe_b64decode(msg["raw"].encode("utf-8"))
-            f = detect(email_from_bytes(raw), min_confidence=0.45)
+            f = _detect(email_from_bytes(raw))
             if f:
                 findings.append(f)
             seen += 1
@@ -194,7 +209,7 @@ def _deep_scan_worker(job_id: str, creds_dict: dict, email: str) -> None:
             if exception is None and response and "raw" in response:
                 try:
                     raw = base64.urlsafe_b64decode(response["raw"].encode("utf-8"))
-                    f = detect(email_from_bytes(raw), min_confidence=0.45)
+                    f = _detect(email_from_bytes(raw))
                     if f:
                         findings.append(f)
                         job["found"] = len(findings)
@@ -224,6 +239,66 @@ try:
     store.init()
 except Exception as e:  # noqa: BLE001 — don't crash boot if the DB is briefly unavailable
     print(f"[pip] store.init failed ({store.backend()}): {e}")
+
+print(
+    f"[cashew] LLM precision filter: "
+    f"{'ON (' + str(active_provider()) + ' / ' + str(active_model()) + ')' if verification_enabled() else 'OFF - set ANTHROPIC_API_KEY or OPENAI_API_KEY to enable'}",
+    flush=True,
+)
+
+
+# Official "check your balance" pages per brand. There's no universal way to
+# verify a gift-card balance automatically (each brand needs the card number +
+# PIN on its own site), so we link the user straight to the real page to check
+# in one click. Brands not listed fall back to a balance-check web search.
+BALANCE_URLS = {
+    "Amazon": "https://www.amazon.com/gc/balance",
+    "Starbucks": "https://www.starbucks.com/account/cards",
+    "Target": "https://www.target.com/guest/gift-card-balance",
+    "Walmart": "https://www.walmart.com/gift-card-balance",
+    "Best Buy": "https://www.bestbuy.com/gift-card-balance",
+    "Apple": "https://www.apple.com/shop/gift-cards",
+    "DoorDash": "https://www.doordash.com/gift-cards/",
+    "Uber Eats": "https://www.ubereats.com/",
+    "Uber": "https://www.uber.com/",
+    "Sephora": "https://www.sephora.com/beauty/gift-card-balance",
+    "Nike": "https://www.nike.com/orders/gift-card-lookup",
+    "Steam": "https://store.steampowered.com/account/",
+    "PlayStation": "https://www.playstation.com/gift-cards/",
+    "Xbox": "https://account.microsoft.com/billing/redeem",
+    "Google Play": "https://play.google.com/store/account",
+    "Etsy": "https://www.etsy.com/your/purchases/gift-cards",
+    "Visa": "https://www.giftcards.com/check-your-balance",
+    "Mastercard": "https://www.giftcards.com/check-your-balance",
+    "Home Depot": "https://www.homedepot.com/c/check_card_balance",
+    "Lowe's": "https://www.lowes.com/l/check-gift-card-balance.html",
+    "Nordstrom": "https://www.nordstrom.com/c/gift-card-balance",
+    "REI": "https://www.rei.com/giftcard/balance",
+    "Chipotle": "https://www.chipotle.com/gift-cards",
+    "Grubhub": "https://www.grubhub.com/gift-cards",
+    "Instacart": "https://www.instacart.com/gift-cards",
+    "Gap": "https://www.gap.com/customerService/info.do?cid=81458",
+    "Old Navy": "https://oldnavy.gap.com/customerService/info.do?cid=2412",
+    "IKEA": "https://www.ikea.com/us/en/customer-service/gift-cards/",
+}
+
+
+def _balance_url(brand: str, kind: str) -> str:
+    """Official balance-check page for this brand, or a web-search fallback.
+
+    Only meaningful for spendable balances (cards / store credit) — referral
+    rewards live inside the brand's app, so we skip the link there.
+    """
+    if kind not in ("gift_card", "store_credit"):
+        return ""
+    if brand in BALANCE_URLS:
+        return BALANCE_URLS[brand]
+    if not brand or brand == "Unknown":
+        return ""
+    import urllib.parse
+
+    q = urllib.parse.quote(f"{brand} gift card check balance")
+    return "https://www.google.com/search?q=" + q
 
 
 def _redeem_hint(brand: str, kind: str) -> str:
@@ -262,13 +337,14 @@ def _to_dict(f) -> dict:
         "expires_text": f.expires_text,
         "redeem": _redeem_hint(f.brand, f.kind),
         "link": _gmail_link(getattr(f, "message_id", ""), f.subject),
+        "balance_url": _balance_url(f.brand, f.kind),
     }
 
 
 def _run_sample_scan() -> list:
     findings = []
     for email in iter_mbox(str(SAMPLE_MBOX)):
-        f = detect(email, min_confidence=0.45)
+        f = _detect(email)
         if f:
             findings.append(f)
     return [_to_dict(f) for f in dedupe(findings)]

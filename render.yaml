@@ -23,6 +23,13 @@ services:
         sync: false                    # set in the Render dashboard (secret)
       - key: GOOGLE_CLIENT_SECRET
         sync: false                    # set in the Render dashboard (secret)
+      # Precision filter — set ONE of these (kills the false positives).
+      - key: OPENAI_API_KEY
+        sync: false                    # OpenAI (default model gpt-4o-mini)
+      # - key: ANTHROPIC_API_KEY
+      #   sync: false                  # Claude alternative (default model claude-opus-4-8)
+      # - key: CASHEW_CLASSIFIER_MODEL
+      #   value: gpt-4o                # optional: override the default model
     disk:
       name: cashew-data
       mountPath: /app/data             # SQLite waitlist + scans persist across deploys

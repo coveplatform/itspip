@@ -419,6 +419,13 @@ details p{margin:0 0 1rem; color:var(--ink-soft); font-weight:600;}
   background:var(--berry); border:2px solid var(--berry-dark); border-radius:999px;
   padding:.3rem .9rem; box-shadow:2px 2px 0 var(--shadow);}
 .rcard .rc-open:hover{background:#ef6f6a; transform:translate(-1px,-1px);}
+.rcard .rc-links{display:flex; flex-wrap:wrap; gap:.5rem; align-items:center;}
+.rcard .rc-links .rc-open{margin-top:.7rem;}
+.rcard .rc-balance{display:inline-block; margin-top:.7rem; font-family:var(--font-disp);
+  font-weight:600; font-size:.92rem; text-decoration:none; color:var(--berry-dark);
+  background:#fff; border:2px solid var(--berry-dark); border-radius:999px;
+  padding:.3rem .9rem; box-shadow:2px 2px 0 var(--shadow);}
+.rcard .rc-balance:hover{background:#fff4f3; transform:translate(-1px,-1px);}
 .rcard.free{border-color:var(--leaf-dark); background:#f3fae9;}
 .rcard .free-flag{position:absolute; top:10px; right:10px; font-family:var(--font-disp); font-weight:700;
   font-size:.7rem; background:var(--leaf); color:#fff; border:2px solid var(--leaf-dark);
