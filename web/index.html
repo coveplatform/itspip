@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Cashew — dig up the money hiding in your inbox</title>
-<meta name="description" content="Gift cards, store credit, refunds and rewards are napping in your inbox. Cashew the squirrel digs them back up — right on your own computer." />
+<meta name="description" content="Gift cards, store credit, refunds and rewards are napping in your inbox. Cashew the squirrel digs them back up — read-only access, and your codes are never stored." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&family=Caveat:wght@600;700&display=swap" rel="stylesheet" />
@@ -155,10 +155,16 @@
     <div class="dirt"><span></span><span></span><span></span><span></span><span></span></div>
     <p class="scan-msg" id="scan-msg">Cashew is rummaging…</p>
     <div class="scan-progress" id="scan-progress" hidden>
+      <div class="scan-tally" id="scan-tally" hidden>
+        <span class="tally-label">unearthed so far</span>
+        <span class="tally-amount" id="scan-tally-amount">$0.00</span>
+      </div>
       <div class="bar"><div class="bar-fill" id="scan-bar"></div></div>
       <p class="scan-stats" id="scan-stats">Starting…</p>
+      <p class="scan-note">Cashew only sniffs out money-related emails — so this is a slice of your inbox, not the whole pile.</p>
     </div>
   </div>
+  <div class="coin-pops" id="coin-pops"></div>
 </div>
 
 <!-- ========================= RESULTS ========================= -->
@@ -180,7 +186,7 @@
       <p class="pw-lead">You've got <strong>$<span id="pw-locked-total">230.57</span></strong> buried across <span id="pw-locked-count">6</span> more stashes. Dig 'em all up:</p>
       <div class="tiers" id="tiers"><!-- tiers injected --></div>
       <button class="btn btn-primary btn-unlock" id="unlock-btn">Unlock everything<svg class="btn-paw" viewBox="0 0 40 40"><use href="#paw"/></svg></button>
-      <p class="pw-fine">🔒 Codes stay on your machine. Cancel anytime. No found money, no charge.</p>
+      <p class="pw-fine">🔒 Read-only access · codes are stripped &amp; never stored. Cancel anytime. No found money, no charge.</p>
     </div>
   </div>
 
@@ -197,14 +203,17 @@
 <!-- ========================= PROOF STRIP ========================= -->
 <section class="proof">
   <div class="proof-card pc1">
+    <div class="proof-vis"><span class="coin c-a">$</span><span class="coin c-b">$</span><span class="coin c-c">$</span></div>
     <span class="big">~$<em id="avg-stash">175</em></span>
     <span class="small">hiding in the average inbox</span>
   </div>
   <div class="proof-card pc2">
+    <div class="proof-vis"><span class="mini-gcard mg-1"></span><span class="mini-gcard mg-2"></span></div>
     <span class="big">70%</span>
     <span class="small">of us have unspent gift cards lying around</span>
   </div>
   <div class="proof-card pc3">
+    <div class="proof-vis"><span class="empty-card"></span></div>
     <span class="big">$0</span>
     <span class="small">found by people who never look. don't be them.</span>
   </div>
@@ -218,19 +227,16 @@
   <div class="steps">
     <article class="step reveal">
       <div class="step-num">1</div>
-      <svg class="step-ico" viewBox="0 0 40 40"><use href="#leaf"/></svg>
       <h3>Drop your email</h3>
       <p>Hop on the list. That's the whole ask for now — Cashew's still training his tiny claws.</p>
     </article>
     <article class="step reveal d1">
       <div class="step-num">2</div>
-      <svg class="step-ico" viewBox="0 0 40 44"><use href="#acorn"/></svg>
       <h3>Cashew rummages</h3>
-      <p>He snuffles through your inbox <b>right on your machine</b> and sniffs out every forgotten card, credit & reward.</p>
+      <p>He snuffles through your inbox with <b>read-only</b> access and sniffs out every forgotten card, credit &amp; reward.</p>
     </article>
     <article class="step reveal d2">
       <div class="step-num">3</div>
-      <svg class="step-ico" viewBox="0 0 40 40"><use href="#coin"/></svg>
       <h3>Cash in the pile</h3>
       <p>He drops the whole stash at your feet with a tidy total. You go spend money you forgot you had.</p>
     </article>
@@ -241,16 +247,17 @@
 <section id="stash" class="stash">
   <svg class="sprig s3" viewBox="0 0 40 40"><use href="#coin"/></svg>
   <svg class="sprig s4" viewBox="0 0 40 40"><use href="#sparkle"/></svg>
-  <h2 class="section-title reveal">What Cashew digs up <svg class="title-ico" viewBox="0 0 40 40"><use href="#coin"/></svg></h2>
+  <h2 class="section-title reveal">What Cashew digs up</h2>
   <p class="section-sub reveal">Turns out your inbox is less "junk drawer", more "piggy bank."</p>
-  <div class="tiles">
-    <div class="tile reveal"><svg class="tile-ico" viewBox="0 0 48 48"><use href="#ic-giftcard"/></svg><h4>Gift cards</h4><p>The $25 eGift from a birthday three years ago.</p></div>
-    <div class="tile reveal d1"><svg class="tile-ico" viewBox="0 0 48 48"><use href="#ic-credit"/></svg><h4>Store credit</h4><p>Returns that quietly became credit you never used.</p></div>
-    <div class="tile reveal d2"><svg class="tile-ico" viewBox="0 0 48 48"><use href="#ic-refund"/></svg><h4>Refund credits</h4><p>"We've credited your account" — and you scrolled past.</p></div>
-    <div class="tile reveal"><svg class="tile-ico" viewBox="0 0 48 48"><use href="#ic-referral"/></svg><h4>Referral rewards</h4><p>Free money for that friend you signed up. Yours.</p></div>
-    <div class="tile reveal d1"><svg class="tile-ico" viewBox="0 0 48 48"><use href="#ic-loyalty"/></svg><h4>Loyalty points</h4><p>Points worth real cash, expiring while you sleep.</p></div>
-    <div class="tile reveal d2 alarm"><svg class="tile-ico" viewBox="0 0 48 48"><use href="#ic-expiring"/></svg><h4>Expiring soon!</h4><p>Cashew squeaks loudly before a single dollar vanishes.</p></div>
+  <div class="stash-pile reveal">
+    <div class="gcard gc-amazon"><div class="gc-row"><span class="gc-chip"></span><span class="gc-brand">amazon</span></div><span class="gc-type">Gift card</span><span class="gc-amount">$25</span></div>
+    <div class="gcard gc-starbucks"><div class="gc-row"><span class="gc-chip"></span><span class="gc-brand">Starbucks</span></div><span class="gc-type">eGift</span><span class="gc-amount">$15</span></div>
+    <div class="gcard gc-visa"><div class="gc-row"><span class="gc-chip"></span><span class="gc-brand">VISA</span></div><span class="gc-type">Prepaid</span><span class="gc-amount">$50</span></div>
+    <div class="gcard gc-sephora"><div class="gc-row"><span class="gc-chip"></span><span class="gc-brand">SEPHORA</span></div><span class="gc-type">Store credit</span><span class="gc-amount">$40</span></div>
+    <div class="gcard gc-doordash"><div class="gc-row"><span class="gc-chip"></span><span class="gc-brand">DoorDash</span></div><span class="gc-type">Credit</span><span class="gc-amount">$20</span></div>
+    <div class="gcard gc-uber"><div class="gc-row"><span class="gc-chip"></span><span class="gc-brand">Uber</span></div><span class="gc-type">Reward</span><span class="gc-amount">$18</span></div>
   </div>
+  <p class="stash-foot reveal">…gift cards, store credit, refunds, referral rewards & loyalty points — all quietly piling up in your inbox.</p>
 </section>
 
 <!-- ========================= PROMISE ========================= -->
@@ -259,12 +266,12 @@
     <img class="promise-pip" src="pip.png" alt="" />
     <h2>The pinky promise <svg class="paw-ink" viewBox="0 0 40 40"><use href="#paw"/></svg></h2>
     <p class="handwriting">
-      Everything happens on <u>your</u> computer.<br>
-      I never upload your emails.<br>
-      I never even keep your gift-card codes.<br>
+      I only ever <u>look</u> — never send, delete, or change a thing.<br>
+      Your codes get stripped out before anything else sees them.<br>
+      I keep your stash list — never your emails.<br>
       <span class="sign">— Cashew 🐾</span>
     </p>
-    <p class="promise-note">Gift-card codes are basically cash. So we treat them like it: nothing leaves your machine, nothing is stored, nothing is ours. That's not a feature — it's the whole point.</p>
+    <p class="promise-note">Read-only access, always. Gift-card codes are basically cash — so we redact them before any processing and never store them. We hold onto what you found (the brand and amount), not your inbox, and we never sell a thing. That's not a feature — it's the whole point.</p>
   </div>
 </section>
 
@@ -294,9 +301,9 @@
   <h2 class="section-title reveal">Curious little questions</h2>
   <div class="faq-list reveal">
     <details><summary>Wait — is this safe? What does Cashew actually see?<span class="chev"></span></summary>
-      <p>Cashew does all his sniffing on your own computer. Your emails are never uploaded to us, and your gift-card codes are never stored anywhere — we only ever count them up. The scary part of the internet doesn't get to touch your money.</p></details>
+      <p>Cashew connects with <b>read-only</b> access — he can look, but can never send, delete, or change anything. We scan your inbox only to find your money, then discard the email content and keep just the results (brand + amount), never your emails. Your gift-card codes are stripped out before any processing and are never stored.</p></details>
     <details><summary>Do I have to connect my email?<span class="chev"></span></summary>
-      <p>Your choice. You can point Cashew at a private export of your mail (fully offline), or give him a read-only peek — he can look, but never send, delete, or change a thing.</p></details>
+      <p>That's how Cashew digs — and it's always <b>read-only</b>. He can look, but never send, delete, or change a thing, and you can disconnect in one tap whenever you like.</p></details>
     <details><summary>How much does it cost?<span class="chev"></span></summary>
       <p>Finding your stash is free. If we ever charge, it's a tiny nibble only <em>after</em> Cashew has actually dug up money for you. No found money, no fee. Fair's fair.</p></details>
     <details><summary>When can I actually use it?<span class="chev"></span></summary>

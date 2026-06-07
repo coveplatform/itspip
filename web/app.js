@@ -67,6 +67,21 @@
     }
   }
 
+  // A coin flips up with "+$50" each time the scan unearths a stash — small
+  // dopamine hits during the dig. The big confetti burst stays reserved for unlock.
+  function coinPop(amount, cur) {
+    const layer = $("#coin-pops");
+    if (!layer) return;
+    const el = document.createElement("div");
+    el.className = "coin-pop";
+    el.innerHTML =
+      '<svg viewBox="0 0 40 40" width="34" height="34"><use href="#coin"/></svg>' +
+      '<span>+' + money(amount, cur) + "</span>";
+    el.style.left = 38 + Math.random() * 24 + "%";
+    layer.appendChild(el);
+    setTimeout(() => el.remove(), 1500);
+  }
+
   /* ============================================================
      The dig flow
      ============================================================ */
@@ -80,6 +95,21 @@
     "Counting the acorns…",
     "Almost got it…",
   ];
+
+  // Whimsical, ever-changing dig verbs (à la Claude's playful loaders) — squirrel-themed.
+  const DIG_WORDS = [
+    "Snuffling…", "Burrowing…", "Rummaging…", "Unearthing…", "Sniffing out cards…",
+    "Digging deeper…", "Sorting acorns…", "Nuzzling the spam…", "Pawing through receipts…",
+    "Squirrelling…", "Following the money-scent…", "Acorn-quidating…", "Excavacorn-ing…",
+    "Tail-flicking through inbox…", "Counting the stash…",
+  ];
+
+  // Fade the scan message out, swap text, fade back in.
+  function swapMsg(el, text) {
+    if (!el) return;
+    el.classList.add("dim");
+    setTimeout(() => { el.textContent = text; el.classList.remove("dim"); }, 220);
+  }
 
   function runScan(email, source) {
     const overlay = $("#scanning");
@@ -124,11 +154,25 @@
     const prog = $("#scan-progress");
     const bar = $("#scan-bar");
     const stats = $("#scan-stats");
+    const tally = $("#scan-tally");
+    const tallyAmt = $("#scan-tally-amount");
     overlay.hidden = false;
     prog.hidden = false;
-    msg.textContent = "Cashew is digging through your inbox…";
+    if (tally) tally.hidden = true;
+    if (tallyAmt) tallyAmt.textContent = "$0.00";
     bar.style.width = "0%";
     stats.textContent = "Starting…";
+
+    let popped = 0;       // finds already celebrated
+    let runTotal = 0;     // running unearthed total
+
+    // rotate the whimsical dig verbs with a fade until the scan finishes
+    let wi = 0;
+    msg.textContent = DIG_WORDS[wi++];
+    const wordTimer = setInterval(() => {
+      swapMsg(msg, DIG_WORDS[wi++ % DIG_WORDS.length]);
+    }, 2800);
+    function stopWords() { clearInterval(wordTimer); }
 
     fetch("/api/scan/start", {
       method: "POST",
@@ -142,6 +186,7 @@
       })
       .then((d) => poll(d.job_id))
       .catch((err) => {
+        stopWords();
         overlay.hidden = true;
         prog.hidden = true;
         toast(err.message || "Cashew couldn't start digging.");
@@ -157,6 +202,20 @@
             ? Math.min(99, Math.round((scanned / total) * 100))
             : Math.min(95, Math.round(scanned / 40) * 5);
           bar.style.width = pct + "%";
+
+          // New stashes since last poll → pop a coin + climb the tally.
+          const finds = p.finds || [];
+          if (finds.length > popped) {
+            for (let k = popped; k < finds.length; k++) {
+              const f = finds[k];
+              coinPop(f.amount, f.currency);
+              runTotal += f.amount || 0;
+            }
+            popped = finds.length;
+            if (tally) tally.hidden = false;
+            if (tallyAmt) countUp(tallyAmt, runTotal, true);
+          }
+
           const foundTxt =
             "found <b>" + p.found + "</b> stash" + (p.found === 1 ? "" : "es");
           stats.innerHTML = total
@@ -166,11 +225,13 @@
 
           if (p.done) {
             if (p.error) {
+              stopWords();
               overlay.hidden = true;
               prog.hidden = true;
               toast("Scan hiccup: " + p.error);
               return;
             }
+            stopWords();
             bar.style.width = "100%";
             msg.textContent = "Done! Tallying your stash…";
             fetch("/api/scan/result/" + p.scan_id)
@@ -193,40 +254,44 @@
     }
   }
 
-  function openLink(item) {
-    return item.link
-      ? '<a class="rc-open" href="' + item.link + '" target="_blank" rel="noopener">Open email →</a>'
-      : "";
+  // meta chips: code present / expiry
+  function chips(item) {
+    let c = "";
+    if (item.code_present) c += '<span class="rc-chip code">✉️ code inside</span>';
+    if (item.expires_text) c += '<span class="rc-chip exp">⏰ ' + item.expires_text + "</span>";
+    return c ? '<div class="rc-meta">' + c + "</div>" : "";
   }
 
-  function balanceLink(item) {
-    return item.balance_url
-      ? '<a class="rc-balance" href="' + item.balance_url + '" target="_blank" rel="noopener">Check balance →</a>'
+  // action footer: open the email + check balance
+  function actions(item) {
+    const open = item.link
+      ? '<a class="rc-btn primary" href="' + item.link + '" target="_blank" rel="noopener">Open email</a>'
       : "";
+    const bal = item.balance_url
+      ? '<a class="rc-btn ghost" href="' + item.balance_url + '" target="_blank" rel="noopener">Check balance</a>'
+      : "";
+    return open || bal ? '<div class="rc-actions">' + open + bal + "</div>" : "";
   }
 
   function teaserCard(item, isFree) {
     if (isFree) {
-      const code = item.code_present
-        ? '<span class="rc-code">✉️ code in your email</span>'
-        : "";
       return (
         '<div class="rcard free">' +
-        '<span class="free-flag">FREE 🎁</span>' +
-        '<div class="rc-kind">' + (KIND[item.kind] || item.kind) + "</div>" +
+        '<div class="rc-top"><span class="rc-kind">' + (KIND[item.kind] || item.kind) + "</span>" +
+          '<span class="free-flag">FREE 🎁</span></div>' +
         '<div class="rc-amount">' + money(item.amount, item.currency) + "</div>" +
         '<div class="rc-brand">' + item.brand + "</div>" +
-        '<div class="rc-redeem">' + item.redeem + "</div>" +
-        code +
-        '<div class="rc-links">' + openLink(item) + balanceLink(item) + "</div>" +
+        chips(item) +
+        '<p class="rc-redeem">' + item.redeem + "</p>" +
+        actions(item) +
         "</div>"
       );
     }
     // locked
     return (
       '<div class="rcard locked">' +
-      '<span class="lock-chip"><svg viewBox="0 0 40 40"><use href="#paw"/></svg></span>' +
-      '<div class="rc-kind">' + (KIND[item.kind] || item.kind) + "</div>" +
+      '<div class="rc-top"><span class="rc-kind">' + (KIND[item.kind] || item.kind) + "</span>" +
+        '<span class="lock-chip"><svg viewBox="0 0 40 40"><use href="#paw"/></svg></span></div>' +
       '<div class="rc-amount">' + money(item.amount, item.currency) + "</div>" +
       '<div class="rc-brand-blur"></div>' +
       '<div class="rc-redeem-blur"></div>' +
@@ -336,20 +401,14 @@
   }
 
   function fullCard(item) {
-    const code = item.code_present
-      ? '<span class="rc-code">✉️ code in your email</span>'
-      : "";
-    const exp = item.expires_text
-      ? '<span class="rc-code">⏰ expires ' + item.expires_text + "</span>"
-      : "";
     return (
       '<div class="rcard">' +
-      '<div class="rc-kind">' + (KIND[item.kind] || item.kind) + "</div>" +
+      '<div class="rc-top"><span class="rc-kind">' + (KIND[item.kind] || item.kind) + "</span></div>" +
       '<div class="rc-amount">' + money(item.amount, item.currency) + "</div>" +
       '<div class="rc-brand">' + item.brand + "</div>" +
-      '<div class="rc-redeem">' + item.redeem + "</div>" +
-      code + exp +
-      '<div class="rc-links">' + openLink(item) + balanceLink(item) + "</div>" +
+      chips(item) +
+      '<p class="rc-redeem">' + item.redeem + "</p>" +
+      actions(item) +
       "</div>"
     );
   }
