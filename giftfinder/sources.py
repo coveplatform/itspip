@@ -86,6 +86,7 @@ def _to_email(msg) -> Email:
         date=date,
         body=_message_text(msg),
         message_id=_header_str(msg.get("Message-ID")) or "",
+        recipient=_header_str(msg.get("To")),
     )
 
 

@@ -85,6 +85,18 @@ HARD_EXCLUDE = [
 # Amounts right after these words are offers/discounts, not held balances.
 AMOUNT_SKIP_BEFORE = ("up to", "upto", "save", "spend", "earn up to", "as much as")
 
+# Senders that are never a held stash — known course/coaching & sweepstakes
+# marketers that dangle "$X gift card" inside a sales pitch. Dropped outright,
+# so they're filtered even when the LLM classifier is off. Extend via the
+# CASHEW_SENDER_BLOCKLIST env var (comma-separated domains).
+import os as _os
+
+SENDER_BLOCKLIST = tuple(
+    d.strip().lower()
+    for d in ("grantcardone.com," + _os.environ.get("CASHEW_SENDER_BLOCKLIST", "")).split(",")
+    if d.strip()
+)
+
 VALUE_HINTS = (
     "balance", "worth", "value", "amount", "credit", "gift card", "received",
     "total of", "egift", "e-gift", "reward",
@@ -197,10 +209,45 @@ def _classify(text_lower: str) -> Optional[str]:
     return None
 
 
+# Phrases meaning a gift card / credit has been USED UP. Consumed by the
+# cross-email "already spent" suppression pass (server side) — NOT single-email
+# detection. A later "you redeemed your X" email means an X stash found
+# elsewhere is probably already spent.
+REDEEMED_SIGNALS = [
+    "you redeemed", "you've redeemed", "youve redeemed", "successfully redeemed",
+    "redeemed your", "gift card redeemed", "fully redeemed", "card fully used",
+    "you used your", "you've used your", "youve used your", "card has been used",
+    "your card was used", "balance is now $0", "balance: $0", "balance of $0",
+    "remaining balance is $0", "remaining balance: $0", "$0.00 remaining",
+    "no remaining balance", "zero balance",
+]
+
+
+def redemption_brand(email: Email) -> Optional[str]:
+    """If this email says a card/credit was used up, return its brand, else None.
+
+    Requires gift-card / credit context so a generic "applied to your order"
+    line in an unrelated receipt doesn't trigger a false suppression.
+    """
+    text_lower = f"{email.subject}\n{email.body}".lower()
+    if not _contains_any(text_lower, REDEEMED_SIGNALS):
+        return None
+    if not _contains_any(
+        text_lower,
+        ("gift card", "giftcard", "e-gift", "egift", "credit", "balance", "voucher"),
+    ):
+        return None
+    return _detect_brand(email, text_lower)
+
+
 def detect(email: Email, min_confidence: float = 0.45) -> Optional[Finding]:
     """Return a Finding only if the email holds real, recoverable money."""
     text = f"{email.subject}\n{email.body}"
     text_lower = text.lower()
+
+    # Banned senders (course/coaching & sweepstakes marketers) — never a stash.
+    if any(b in email.sender.lower() for b in SENDER_BLOCKLIST):
+        return None
 
     # Outright junk: lottery/phishing, prepaid service balances, course sales.
     if _contains_any(text_lower, HARD_EXCLUDE):

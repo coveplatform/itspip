@@ -22,7 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 import store
-from giftfinder.detect import detect
+from giftfinder.detect import detect, redemption_brand
 from giftfinder.report import dedupe
 from giftfinder.sources import email_from_bytes, iter_mbox
 from giftfinder.verify import active_model, active_provider, verification_enabled, verify_finding
@@ -114,17 +114,35 @@ GMAIL_SCAN_LIMIT = int(os.environ.get("GMAIL_SCAN_LIMIT", "25"))
 
 
 def _detect(email):
-    """Keyword detect → Claude precision gate. Returns a Finding or None.
+    """Keyword detect → LLM precision gate. Returns a Finding or None.
 
     The keyword pass is high-recall; `verify_finding` is the final judge that
-    kills marketing dangles ("win a $300 gift card") the keywords miss. When no
-    ANTHROPIC_API_KEY is set, verify_finding is a no-op and the keyword verdict
-    stands.
+    kills marketing dangles ("win a $300 gift card"), purchase receipts, and
+    expired credit the keywords miss. With no API key, verify_finding is a no-op
+    and the keyword verdict stands.
     """
     f = detect(email, min_confidence=0.45)
     if f is None:
         return None
     return verify_finding(email, f)
+
+
+def _drop_spent(findings, spent_brands):
+    """Cross-email pass: drop findings whose brand has a 'redeemed/used' email.
+
+    spent_brands is a set of lowercased brand names gathered from redemption
+    notices seen anywhere in the same inbox. Brand-level join, so it's kept
+    conservative and every suppression is logged.
+    """
+    if not spent_brands:
+        return findings
+    kept = []
+    for f in findings:
+        if f.brand.lower() in spent_brands:
+            print(f"[cashew] suppressed likely-spent: {f.brand} ${f.amount}", flush=True)
+            continue
+        kept.append(f)
+    return kept
 
 
 def _run_gmail_scan(creds_dict: dict, limit: int = GMAIL_SCAN_LIMIT) -> list:
@@ -139,6 +157,7 @@ def _run_gmail_scan(creds_dict: dict, limit: int = GMAIL_SCAN_LIMIT) -> list:
     creds = Credentials(**creds_dict)
     service = build("gmail", "v1", credentials=creds, cache_discovery=False)
     findings = []
+    spent = set()
     seen = 0
     page_token = None
     # Page through every matching message. limit=0 means "no cap — scan it all".
@@ -157,16 +176,20 @@ def _run_gmail_scan(creds_dict: dict, limit: int = GMAIL_SCAN_LIMIT) -> list:
                 .execute()
             )
             raw = base64.urlsafe_b64decode(msg["raw"].encode("utf-8"))
-            f = _detect(email_from_bytes(raw))
+            em = email_from_bytes(raw)
+            f = _detect(em)
             if f:
                 findings.append(f)
+            rb = redemption_brand(em)
+            if rb:
+                spent.add(rb.lower())
             seen += 1
             if limit and seen >= limit:
                 break
         page_token = listing.get("nextPageToken")
         if not page_token or (limit and seen >= limit):
             break
-    return [_to_dict(f) for f in dedupe(findings)]
+    return [_to_dict(f) for f in dedupe(_drop_spent(findings, spent))]
 
 
 # --- Deep scan (every email) with live progress ---------------------------
@@ -203,16 +226,23 @@ def _deep_scan_worker(job_id: str, creds_dict: dict, email: str) -> None:
 
         # 2) Batch-download 100 at a time (≈100× fewer round-trips) + detect.
         findings = []
+        spent = set()
 
         def _cb(request_id, response, exception):
             job["scanned"] += 1
             if exception is None and response and "raw" in response:
                 try:
                     raw = base64.urlsafe_b64decode(response["raw"].encode("utf-8"))
-                    f = _detect(email_from_bytes(raw))
+                    em = email_from_bytes(raw)
+                    f = _detect(em)
                     if f:
                         findings.append(f)
                         job["found"] = len(findings)
+                        if f.amount:
+                            job["finds"].append({"amount": f.amount, "currency": f.currency})
+                    rb = redemption_brand(em)
+                    if rb:
+                        spent.add(rb.lower())
                 except Exception:
                     pass
 
@@ -283,7 +313,12 @@ BALANCE_URLS = {
 }
 
 
-def _balance_url(brand: str, kind: str) -> str:
+# AU prepaid Visa/Mastercard gift cards (Category Choice / "AU Gift Cards"
+# programs sold at Australia Post, supermarkets, etc.) check balance here.
+CARDBALANCE_AU = "https://www.cardbalance.com.au/"
+
+
+def _balance_url(brand: str, kind: str, currency: str = "USD") -> str:
     """Official balance-check page for this brand, or a web-search fallback.
 
     Only meaningful for spendable balances (cards / store credit) — referral
@@ -291,6 +326,9 @@ def _balance_url(brand: str, kind: str) -> str:
     """
     if kind not in ("gift_card", "store_credit"):
         return ""
+    # AU prepaid Visa/Mastercard cards have a dedicated balance portal.
+    if brand in ("Visa", "Mastercard") and currency == "AUD":
+        return CARDBALANCE_AU
     if brand in BALANCE_URLS:
         return BALANCE_URLS[brand]
     if not brand or brand == "Unknown":
@@ -337,17 +375,21 @@ def _to_dict(f) -> dict:
         "expires_text": f.expires_text,
         "redeem": _redeem_hint(f.brand, f.kind),
         "link": _gmail_link(getattr(f, "message_id", ""), f.subject),
-        "balance_url": _balance_url(f.brand, f.kind),
+        "balance_url": _balance_url(f.brand, f.kind, f.currency),
     }
 
 
 def _run_sample_scan() -> list:
     findings = []
+    spent = set()
     for email in iter_mbox(str(SAMPLE_MBOX)):
         f = _detect(email)
         if f:
             findings.append(f)
-    return [_to_dict(f) for f in dedupe(findings)]
+        rb = redemption_brand(email)
+        if rb:
+            spent.add(rb.lower())
+    return [_to_dict(f) for f in dedupe(_drop_spent(findings, spent))]
 
 
 def _teaser(scan_id: str, items: list) -> dict:
@@ -429,6 +471,7 @@ async def scan_start(request: Request):
     _SCAN_JOBS[job_id] = {
         "scanned": 0, "total": 0, "found": 0, "done": False,
         "error": None, "scan_id": None, "started": time.time(),
+        "finds": [],  # [{amount, currency}] streamed live for the dopamine pops
     }
     threading.Thread(
         target=_deep_scan_worker, args=(job_id, creds, email), daemon=True
@@ -448,6 +491,7 @@ def scan_progress(job_id: str):
         "done": job["done"],
         "error": job["error"],
         "scan_id": job["scan_id"],
+        "finds": job["finds"],
     }
 
 

@@ -12,6 +12,7 @@ class Email:
     date: Optional[datetime]
     body: str
     message_id: str
+    recipient: str = ""   # the "To" header — helps spot cards sent to someone else
 
 
 @dataclass

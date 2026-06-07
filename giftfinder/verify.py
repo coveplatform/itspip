@@ -19,10 +19,27 @@ so the app keeps working with zero config.
 """
 import json
 import os
+import re
 from dataclasses import replace
 from typing import Optional, Tuple
 
 from .models import Email, Finding
+
+# Bearer instruments to strip BEFORE any text is sent to the LLM — gift-card
+# codes, PINs, voucher/card numbers. The classifier only needs the email's
+# meaning, never the actual code, so we redact these so they never leave for a
+# third party. (We still tell the model whether a code was present.)
+_SECRET_RE = re.compile(
+    r"\b(?:[A-Z0-9]{4,}-){2,}[A-Z0-9]{3,}\b"                       # ABCD-EFGH-1234
+    r"|\b(?:code|pin|claim code|voucher|card number)\b\s*[:#]?\s*[A-Z0-9]{4,}"  # code: XXXXXX
+    r"|\b\d(?:[ -]?\d){12,18}\b",                                   # 13–19 digit card numbers
+    re.IGNORECASE,
+)
+
+
+def _redact(text: str) -> str:
+    """Mask gift-card codes / PINs / card numbers so they never reach the LLM."""
+    return _SECRET_RE.sub("[redacted]", text or "")
 
 _DEFAULT_MODELS = {
     "anthropic": "claude-opus-4-8",
@@ -31,28 +48,43 @@ _DEFAULT_MODELS = {
 
 _SYSTEM = (
     "You are the precision filter for Cashew, a tool that finds gift cards, "
-    "store credit, and rewards a person ACTUALLY HOLDS in their email inbox. "
-    "You are shown ONE email that a keyword scanner flagged as possible money. "
-    "Decide whether the recipient genuinely possesses redeemable money right now "
-    "because of this email.\n\n"
-    "Set held=true ONLY when the email is evidence the recipient already holds "
-    "spendable money: a gift card someone sent or bought for them, store credit "
-    "or a refund added to their account, a reward/referral balance credited to "
-    "them — with a real, specific amount they can spend.\n\n"
-    "Set held=false for anything that is a dangle, offer, or marketing, even when "
-    "it names a dollar amount:\n"
+    "store credit, and rewards a person ACTUALLY HOLDS and can spend right now. "
+    "You are shown ONE email a keyword scanner flagged as possible money. "
+    "Decide whether THIS email is itself a redeemable stash the recipient holds.\n\n"
+    "THE KEY TEST — is this the money, or just a notification about money?\n"
+    "Set held=true ONLY when the recipient can act on the money FROM THIS EMAIL:\n"
+    "- a gift card / e-gift issued TO them that carries a redemption code, PIN, or a "
+    "\"redeem / view your card\" link in this email, OR\n"
+    "- store credit, a refund, or a reward balance added to THEIR OWN account.\n"
+    "There must be a real, specific amount they can spend.\n\n"
+    "Set held=false for anything that is merely a notification, receipt, offer, or "
+    "marketing — even when it names a dollar amount:\n"
+    "- PURCHASE / ORDER CONFIRMATIONS and receipts: emails confirming the recipient "
+    "BOUGHT or SENT a gift card (\"your gift card purchase is complete\", \"order "
+    "confirmation\", \"thanks for your purchase\", \"payment received\"). These are "
+    "receipts — the redeemable card with its code arrives in a SEPARATE email.\n"
+    "- a card the recipient bought or sent AS A GIFT FOR SOMEONE ELSE (a different "
+    "recipient email / name). That is not the recipient's money.\n"
     "- sweepstakes / raffles / giveaways (\"enter for a chance to win a $300 gift card\")\n"
     "- offers to earn (\"refer a friend and get $20\", \"spend $50 get $10\", \"earn up to $100\")\n"
     "- promotions or sales OF gift cards (\"buy a gift card\", \"gift cards make great gifts\", \"$10 off\")\n"
     "- prepaid service / developer credit (Twilio, OpenAI, cloud balances), running-low / top-up notices\n"
-    "- course / event / subscription sales\n"
-    "- generic discount or coupon codes\n"
-    "- order confirmations or receipts where they SPENT money rather than received it\n\n"
+    "- course / event / subscription sales, generic discount or coupon codes\n"
+    "- any email where there is no code, no redeem link, and no balance on the recipient's own account — "
+    "a mere mention of a gift card is not a stash.\n\n"
     "\"$X Visa/Mastercard gift card\" is almost always a sweepstakes or phishing lure "
-    "unless the email clearly shows a specific card was issued to this recipient.\n\n"
-    "When held=true, extract the brand (the company whose money it is), the amount "
-    "as a number, and the currency. If you are unsure whether the money is truly "
-    "held, prefer held=false — missing a real stash is better than showing a fake one."
+    "unless the email clearly shows a specific card with a code was issued to this recipient.\n\n"
+    "EXPIRY: you are told the email's sent date and today's date. If this is a gift card "
+    "or promotional credit that states an expiry, and that expiry has clearly passed as of "
+    "TODAY, set held=false — it is dead money. Resolve relative expiries (\"valid for 7 "
+    "days\", \"expires end of month\") against the SENT date. Note: standard retailer gift "
+    "cards usually do NOT expire, so do not drop a card with a code merely for being old — "
+    "only drop on an explicit expiry that has passed.\n\n"
+    "When held=true, extract the brand (the company whose money it is — for a card "
+    "bought through a reseller like Zip or PayPal, the brand is the store the card "
+    "spends at, e.g. Coles), the amount as a number, and the currency. When unsure "
+    "whether the money is truly held and usable from this email, prefer held=false — "
+    "missing a real stash is better than showing a receipt or a fake one."
 )
 
 _SCHEMA = {
@@ -167,14 +199,27 @@ def verify_finding(email: Email, finding: Finding) -> Optional[Finding]:
     if client is None:
         return finding
 
-    body = (email.body or "")[:6000]
+    import datetime as _dt
+
+    # Strip codes/PINs/card numbers BEFORE anything is sent to the LLM.
+    body = _redact(email.body or "")[:6000]
+    subject = _redact(email.subject or "")
     guess_amt = f"{finding.currency} {finding.amount}" if finding.amount is not None else "unknown"
+    code_note = "yes" if finding.code_present else "no"
+    sent = email.date.date().isoformat() if email.date else "(unknown)"
+    today = _dt.date.today().isoformat()
     user = (
         f"The keyword scanner guessed: kind={finding.kind}, brand={finding.brand}, "
-        f"amount={guess_amt}.\n\n"
+        f"amount={guess_amt}.\n"
+        f"Redemption code/PIN detected in this email (keyword scan): {code_note} "
+        "(the actual code has been redacted from the text below for privacy). "
+        "If no code or redeem link is present and this is not credit on the recipient's "
+        "own account, it is most likely a notification or receipt, not a held stash.\n"
+        f"Email sent date: {sent}. Today's date: {today}.\n\n"
         "--- EMAIL ---\n"
         f"From: {email.sender}\n"
-        f"Subject: {email.subject}\n\n"
+        f"To: {email.recipient or '(unknown)'}\n"
+        f"Subject: {subject}\n\n"
         f"{body}\n"
         "--- END EMAIL ---"
     )
