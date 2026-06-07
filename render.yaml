@@ -1,24 +1,29 @@
-# Render blueprint — deploys Pip at a public URL with HTTPS.
-# Push this repo to GitHub, then: Render → New → Blueprint → pick the repo.
+# Render blueprint — deploys Cashew (the full app, deep scan + progress) at a
+# public HTTPS URL. Render runs a persistent container, so the background scan
+# and progress bar work (unlike serverless).
+#
+# Push this repo to GitHub, then: Render -> New -> Blueprint -> pick the repo.
 services:
   - type: web
-    name: pip
+    name: cashew
     runtime: docker
-    plan: starter            # free tier works too; starter avoids cold starts
+    plan: starter            # free works to test; starter avoids cold-start spin-down
     healthCheckPath: /api/stats
     autoDeploy: true
     envVars:
       - key: PIP_ENV
         value: production
       - key: PIP_SECRET
-        generateValue: true            # stable session signing key
+        generateValue: true            # stable session-signing key
+      - key: GMAIL_DEEP
+        value: "0"                     # wide smart search (fast). "1" = every email
       - key: OAUTH_REDIRECT
-        value: https://pip.mixreflect.com/auth/google/callback
+        value: https://cashew.onrender.com/auth/google/callback
       - key: GOOGLE_CLIENT_ID
         sync: false                    # set in the Render dashboard (secret)
       - key: GOOGLE_CLIENT_SECRET
         sync: false                    # set in the Render dashboard (secret)
     disk:
-      name: pip-data
-      mountPath: /app/data             # keeps the SQLite waitlist/scans across deploys
+      name: cashew-data
+      mountPath: /app/data             # SQLite waitlist + scans persist across deploys
       sizeGB: 1
