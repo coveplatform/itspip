@@ -117,6 +117,82 @@
       });
   }
 
+  // Deep scan of the whole inbox with a live progress bar.
+  function startScan(email) {
+    const overlay = $("#scanning");
+    const msg = $("#scan-msg");
+    const prog = $("#scan-progress");
+    const bar = $("#scan-bar");
+    const stats = $("#scan-stats");
+    overlay.hidden = false;
+    prog.hidden = false;
+    msg.textContent = "Pip is digging through your inbox…";
+    bar.style.width = "0%";
+    stats.textContent = "Starting…";
+
+    fetch("/api/scan/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email || "", source: "gmail" }),
+    })
+      .then(async (r) => {
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || "couldn't start the dig");
+        return d;
+      })
+      .then((d) => poll(d.job_id))
+      .catch((err) => {
+        overlay.hidden = true;
+        prog.hidden = true;
+        toast(err.message || "Pip couldn't start digging.");
+      });
+
+    function poll(jobId) {
+      fetch("/api/scan/progress/" + jobId)
+        .then((r) => r.json())
+        .then((p) => {
+          const total = p.total || 0;
+          const scanned = p.scanned || 0;
+          const pct = total
+            ? Math.min(99, Math.round((scanned / total) * 100))
+            : Math.min(95, Math.round(scanned / 40) * 5);
+          bar.style.width = pct + "%";
+          const foundTxt =
+            "found <b>" + p.found + "</b> stash" + (p.found === 1 ? "" : "es");
+          stats.innerHTML = total
+            ? "Dug through <b>" + scanned.toLocaleString() + "</b> of ~" +
+              total.toLocaleString() + " emails · " + foundTxt
+            : "Dug through <b>" + scanned.toLocaleString() + "</b> emails · " + foundTxt;
+
+          if (p.done) {
+            if (p.error) {
+              overlay.hidden = true;
+              prog.hidden = true;
+              toast("Scan hiccup: " + p.error);
+              return;
+            }
+            bar.style.width = "100%";
+            msg.textContent = "Done! Tallying your stash…";
+            fetch("/api/scan/result/" + p.scan_id)
+              .then((r) => r.json())
+              .then((data) => {
+                overlay.hidden = true;
+                prog.hidden = true;
+                renderTeaser(data);
+              })
+              .catch(() => {
+                overlay.hidden = true;
+                prog.hidden = true;
+                toast("Couldn't load results — try again?");
+              });
+            return;
+          }
+          setTimeout(() => poll(jobId), 900);
+        })
+        .catch(() => setTimeout(() => poll(jobId), 1500));
+    }
+  }
+
   function teaserCard(item, isFree) {
     if (isFree) {
       const code = item.code_present
@@ -345,7 +421,7 @@
     } catch (e) {}
 
     if (connected) {
-      runScan(email, "gmail");
+      startScan(email);
       btn.disabled = false;
       btn.innerHTML = digLabel();
     } else {
@@ -374,7 +450,7 @@
     let email = "";
     try { email = localStorage.getItem("pip_email") || ""; } catch (e) {}
     toast("Gmail connected! 🐿️ Digging through your inbox…");
-    runScan(email, "gmail");
+    startScan(email);
   } else if (params.get("gmail") === "unconfigured") {
     history.replaceState({}, "", location.pathname);
     toast("Gmail isn't set up on this server yet — see GMAIL_SETUP.md.");

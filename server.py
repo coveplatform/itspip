@@ -12,6 +12,8 @@ import base64
 import os
 import re
 import secrets
+import threading
+import time
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -144,6 +146,64 @@ def _run_gmail_scan(creds_dict: dict, limit: int = GMAIL_SCAN_LIMIT) -> list:
     return [_to_dict(f) for f in dedupe(findings)]
 
 
+# --- Deep scan (every email) with live progress ---------------------------
+# job_id -> {scanned, total, found, done, error, scan_id, email}
+_SCAN_JOBS: dict = {}
+# Deep scan reads EVERY message (no search filter). Set GMAIL_DEEP=0 to scan
+# only money-bearing mail instead (faster).
+GMAIL_DEEP = os.environ.get("GMAIL_DEEP", "1") == "1"
+
+
+def _deep_scan_worker(job_id: str, creds_dict: dict, email: str) -> None:
+    job = _SCAN_JOBS[job_id]
+    try:
+        from google.oauth2.credentials import Credentials
+        from googleapiclient.discovery import build
+
+        creds = Credentials(**creds_dict)
+        service = build("gmail", "v1", credentials=creds, cache_discovery=False)
+        query = None if GMAIL_DEEP else GMAIL_QUERY
+
+        # rough total for the progress bar
+        head = service.users().messages().list(
+            userId="me", q=query, maxResults=1
+        ).execute()
+        job["total"] = head.get("resultSizeEstimate", 0)
+
+        findings = []
+        page_token = None
+        while True:
+            listing = service.users().messages().list(
+                userId="me", q=query, maxResults=100, pageToken=page_token
+            ).execute()
+            for ref in listing.get("messages", []):
+                try:
+                    msg = service.users().messages().get(
+                        userId="me", id=ref["id"], format="raw"
+                    ).execute()
+                    raw = base64.urlsafe_b64decode(msg["raw"].encode("utf-8"))
+                    f = detect(email_from_bytes(raw), min_confidence=0.45)
+                    if f:
+                        findings.append(f)
+                        job["found"] = len(findings)
+                except Exception:
+                    pass  # skip a bad/oversized message, keep going
+                job["scanned"] += 1
+            page_token = listing.get("nextPageToken")
+            if not page_token:
+                break
+
+        items = [_to_dict(f) for f in dedupe(findings)]
+        scan_id = secrets.token_urlsafe(9)
+        store.save_scan(scan_id, email, items)
+        job["scan_id"] = scan_id
+        job["found"] = len(items)
+        job["done"] = True
+    except Exception as e:  # noqa: BLE001
+        job["error"] = str(e)
+        job["done"] = True
+
+
 try:
     store.init()
 except Exception as e:  # noqa: BLE001 — don't crash boot if the DB is briefly unavailable
@@ -241,9 +301,68 @@ async def join(request: Request):
     return {"ok": True, "diggers": SEED_DIGGERS + n}
 
 
+@app.post("/api/scan/start")
+async def scan_start(request: Request):
+    """Kick off a background deep scan of the whole inbox; returns a job id."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    email = (body.get("email") or "").strip().lower()
+    if email and EMAIL_RE.match(email):
+        store.add_waitlist(email)
+    creds = request.session.get("gmail_creds")
+    if not creds:
+        return JSONResponse(
+            {"error": "Gmail isn't connected — tap “Dig up my money” to connect 🐿️"},
+            status_code=400,
+        )
+    job_id = secrets.token_urlsafe(9)
+    _SCAN_JOBS[job_id] = {
+        "scanned": 0, "total": 0, "found": 0, "done": False,
+        "error": None, "scan_id": None, "started": time.time(),
+    }
+    threading.Thread(
+        target=_deep_scan_worker, args=(job_id, creds, email), daemon=True
+    ).start()
+    return {"job_id": job_id}
+
+
+@app.get("/api/scan/progress/{job_id}")
+def scan_progress(job_id: str):
+    job = _SCAN_JOBS.get(job_id)
+    if not job:
+        return JSONResponse({"error": "unknown job"}, status_code=404)
+    return {
+        "scanned": job["scanned"],
+        "total": job["total"],
+        "found": job["found"],
+        "done": job["done"],
+        "error": job["error"],
+        "scan_id": job["scan_id"],
+    }
+
+
+@app.get("/api/scan/result/{scan_id}")
+def scan_result(scan_id: str):
+    rec = store.get_scan(scan_id)
+    if rec is None:
+        return JSONResponse({"error": "that dig has wandered off 🐿️"}, status_code=404)
+    items = rec["items"]
+    if not items:
+        return {
+            "scan_id": scan_id, "count": 0, "total": 0, "currency": "USD",
+            "free": None, "locked": [], "tiers": TIERS, "paid": False,
+            "source": "gmail", "empty": True,
+        }
+    teaser = _teaser(scan_id, items)
+    teaser["source"] = "gmail"
+    return teaser
+
+
 @app.post("/api/scan")
 async def scan(request: Request):
-    """Run a dig and return a teaser with exactly one stash unlocked.
+    """One-shot scan (sample inbox / capped). The main UI uses /api/scan/start.
 
     source="gmail" scans the connected real inbox (read-only); anything else
     scans the bundled sample inbox so the flow works with zero setup.

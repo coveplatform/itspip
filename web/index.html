@@ -21,48 +21,6 @@
     <!-- paper grain -->
     <filter id="grain"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter>
 
-    <!-- Pip the squirrel -->
-    <symbol id="pip" viewBox="0 0 200 210">
-      <!-- tail -->
-      <path d="M150 180 C205 168 206 86 156 60 C124 43 95 66 106 100 C113 122 146 120 150 96 C152 84 140 78 132 86"
-            fill="#9a5a30" stroke="#6f3f20" stroke-width="5" stroke-linecap="round"/>
-      <path d="M152 168 C190 156 192 96 158 78 C140 69 124 84 130 104"
-            fill="none" stroke="#e8c79a" stroke-width="7" stroke-linecap="round" opacity=".8"/>
-      <!-- body -->
-      <ellipse cx="100" cy="140" rx="50" ry="52" fill="#b97a45" stroke="#6f3f20" stroke-width="5"/>
-      <ellipse cx="100" cy="150" rx="31" ry="36" fill="#f6e6c8"/>
-      <!-- feet -->
-      <ellipse cx="78" cy="190" rx="14" ry="9" fill="#a96a3a" stroke="#6f3f20" stroke-width="4"/>
-      <ellipse cx="122" cy="190" rx="14" ry="9" fill="#a96a3a" stroke="#6f3f20" stroke-width="4"/>
-      <!-- head -->
-      <circle cx="100" cy="74" r="44" fill="#b97a45" stroke="#6f3f20" stroke-width="5"/>
-      <!-- ears -->
-      <path d="M64 40 q-10 -26 12 -28 q16 4 12 30 z" fill="#b97a45" stroke="#6f3f20" stroke-width="5"/>
-      <path d="M136 40 q10 -26 -12 -28 q-16 4 -12 30 z" fill="#b97a45" stroke="#6f3f20" stroke-width="5"/>
-      <path d="M70 30 q-3 -12 7 -14 q8 3 5 16 z" fill="#f2b0aa"/>
-      <path d="M130 30 q3 -12 -7 -14 q-8 3 -5 16 z" fill="#f2b0aa"/>
-      <!-- cheeks -->
-      <ellipse cx="70" cy="88" rx="9" ry="6" fill="#f2a39c" opacity=".85"/>
-      <ellipse cx="130" cy="88" rx="9" ry="6" fill="#f2a39c" opacity=".85"/>
-      <!-- eyes -->
-      <circle cx="83" cy="72" r="9" fill="#3a2a1e"/>
-      <circle cx="117" cy="72" r="9" fill="#3a2a1e"/>
-      <circle cx="86" cy="69" r="3" fill="#fff"/>
-      <circle cx="120" cy="69" r="3" fill="#fff"/>
-      <!-- nose + smile -->
-      <path d="M94 86 q6 7 12 0 q-6 6 -6 9 q0 -3 -6 -9z" fill="#6f3f20"/>
-      <path d="M92 96 q8 7 16 0" fill="none" stroke="#6f3f20" stroke-width="3" stroke-linecap="round"/>
-      <!-- arms -->
-      <ellipse cx="74" cy="150" rx="11" ry="16" fill="#b97a45" stroke="#6f3f20" stroke-width="5" transform="rotate(18 74 150)"/>
-      <ellipse cx="126" cy="150" rx="11" ry="16" fill="#b97a45" stroke="#6f3f20" stroke-width="5" transform="rotate(-18 126 150)"/>
-      <!-- gift card in paws -->
-      <g transform="rotate(-8 100 152)">
-        <rect x="78" y="138" width="44" height="30" rx="7" fill="#f2a15c" stroke="#6f3f20" stroke-width="5"/>
-        <rect x="78" y="146" width="44" height="6" fill="#6f3f20" opacity=".55"/>
-        <path d="M100 153 q5 -7 9 0 q0 5 -9 10 q-9 -5 -9 -10 q4 -7 9 0z" fill="#fff"/>
-      </g>
-    </symbol>
-
     <!-- doodles -->
     <symbol id="acorn" viewBox="0 0 40 44">
       <path d="M8 16 q12 -14 24 0 q-12 6 -24 0z" fill="#8c5a2b" stroke="#5a3a18" stroke-width="2.5"/>
@@ -169,7 +127,7 @@
 
     <p class="connect-note reveal d3">
       <svg class="g-ico" viewBox="0 0 256 193" aria-hidden="true"><use href="#gmail"/></svg>
-      Pip connects to Gmail <b>read-only</b> — one tap to approve, then he digs.
+      Connects to Gmail <b>read-only</b> — approve in one tap.
     </p>
 
     <ul class="trust-row reveal d4">
@@ -196,6 +154,10 @@
     <img class="dig-pip" src="pip.png" alt="" />
     <div class="dirt"><span></span><span></span><span></span><span></span><span></span></div>
     <p class="scan-msg" id="scan-msg">Pip is rummaging…</p>
+    <div class="scan-progress" id="scan-progress" hidden>
+      <div class="bar"><div class="bar-fill" id="scan-bar"></div></div>
+      <p class="scan-stats" id="scan-stats">Starting…</p>
+    </div>
   </div>
 </div>
 

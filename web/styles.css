@@ -380,6 +380,13 @@ details p{margin:0 0 1rem; color:var(--ink-soft); font-weight:600;}
 .dirt span:nth-child(4){animation-delay:.3s;background:var(--acorn);}
 .dirt span:nth-child(5){animation-delay:.4s;background:var(--acorn-dark);}
 .scan-msg{font-family:var(--font-disp); font-weight:600; font-size:1.5rem; margin-top:1.2rem; color:var(--ink);}
+.scan-progress{margin:1.2rem auto 0; width:min(420px,82vw);}
+.scan-progress .bar{height:18px; background:var(--paper); border:3px solid var(--line);
+  border-radius:999px; overflow:hidden; box-shadow:var(--pop-sm);}
+.scan-progress .bar-fill{height:100%; width:0%; background:var(--leaf);
+  border-radius:999px; transition:width .5s ease;}
+.scan-stats{margin:.7rem 0 0; font-weight:700; color:var(--ink-soft); font-size:1rem;}
+.scan-stats b{color:var(--leaf-dark);}
 @keyframes dig{0%,100%{transform:rotate(-6deg) translateY(0);}50%{transform:rotate(6deg) translateY(6px);}}
 @keyframes dirtpop{0%,100%{transform:translateY(0); opacity:.4;}50%{transform:translateY(-14px); opacity:1;}}
 
@@ -519,11 +526,27 @@ details p{margin:0 0 1rem; color:var(--ink-soft); font-weight:600;}
   .hero h1{font-size:clamp(2.1rem,9vw,2.6rem);}
   .lead{font-size:1.05rem;}
 
-  /* stack the email form into full-width, thumb-friendly controls */
-  .join-form{flex-direction:column; align-items:stretch; max-width:24rem; width:100%;}
-  .join-form input{min-width:0; width:100%; text-align:center;}
-  .join-form .btn-primary{width:100%; justify-content:center; font-size:1.1rem; padding:.85rem 1.4rem;}
-  .join-form.big{max-width:24rem;}
+  /* keep the mascot a sensible size — it was eating the whole screen */
+  .hero-art{min-height:auto;}
+  .pip-big{width:min(180px,46vw);}
+  .spotlight{width:220px; height:220px;}
+  .speech{font-size:1.25rem; top:0; right:0;}
+  .ticker-badge{padding:.3rem .7rem;}
+  .ticker-badge strong{font-size:1.2rem;}
+
+  /* stack the email form into a tidy, full-width pair of controls.
+     a 12px rounded rectangle reads as a real input (not a giant pill) */
+  .join-form{flex-direction:column; align-items:stretch; max-width:20rem; width:100%; gap:.55rem;}
+  .join-form input{min-width:0; width:100%; text-align:left; font-size:1rem; font-weight:600;
+    padding:.7rem .95rem; border-width:2px; border-radius:12px; box-shadow:none;}
+  .join-form .btn-primary{width:100%; justify-content:center; font-size:1.02rem;
+    padding:.75rem 1.2rem; border-radius:12px;}
+  .join-form.big{max-width:20rem;}
+
+  /* Gmail note: a small, centered single caption — no ragged flex wrapping */
+  .connect-note{display:block; text-align:center; font-size:.82rem; line-height:1.45;
+    max-width:19rem; margin:.8rem auto 0;}
+  .connect-note .g-ico{display:inline-block; vertical-align:-2px; width:15px; height:12px; margin-right:.25rem;}
 
   /* one-up everything that was a grid */
   .steps,.tiles,.notes{grid-template-columns:1fr; gap:1.2rem;}
