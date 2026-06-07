@@ -1,10 +1,10 @@
-# Connecting real Gmail to Pip
+# Connecting real Gmail to Cashew
 
-Pip can scan real inboxes read-only via Google OAuth. The code is already wired
+Cashew can scan real inboxes read-only via Google OAuth. The code is already wired
 up — you just need to give the server Google credentials. ~10 minutes.
 
 ## 1. Make a Google Cloud project
-1. Go to <https://console.cloud.google.com/> → create a project (e.g. "Pip").
+1. Go to <https://console.cloud.google.com/> → create a project (e.g. "Cashew").
 
 ## 2. Enable the Gmail API
 1. **APIs & Services → Library** → search **Gmail API** → **Enable**.
@@ -12,7 +12,7 @@ up — you just need to give the server Google credentials. ~10 minutes.
 ## 3. Configure the OAuth consent screen
 1. **APIs & Services → OAuth consent screen**.
 2. User type: **External** → Create.
-3. Fill app name ("Pip"), your support email, developer email. Save.
+3. Fill app name ("Cashew"), your support email, developer email. Save.
 4. **Scopes** → Add → add `.../auth/gmail.readonly` → Save.
 5. **Test users** → add the Gmail addresses you'll test with (up to 100).
    - While the app is in "Testing", only these users can connect. That's fine
@@ -52,7 +52,7 @@ Now open <http://127.0.0.1:8000>, click **Connect your Gmail**, approve the
 read-only consent, and hit **dig my real inbox**.
 
 ## How it works / privacy
-- Scope is **`gmail.readonly`** — Pip can read, never send/delete/modify.
+- Scope is **`gmail.readonly`** — Cashew can read, never send/delete/modify.
 - The server queries only money-bearing mail (gift cards, credits, rewards),
   scans each message in memory, and **discards it** — message bodies and codes
   are never written to disk. Only the per-scan results (brand, amount) live in

@@ -1,6 +1,6 @@
-# Deploying Pip on Vercel
+# Deploying Cashew on Vercel
 
-Pip is now serverless-ready: it uses **Postgres** for data (not SQLite) and
+Cashew is now serverless-ready: it uses **Postgres** for data (not SQLite) and
 keeps the **Gmail connection in the signed session cookie** (not server memory),
 so it survives across Vercel's function instances. The repo already includes
 `vercel.json` and a Postgres-aware `store.py`.

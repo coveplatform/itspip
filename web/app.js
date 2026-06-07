@@ -1,4 +1,4 @@
-/* Pip — front-end joy + the freemium dig flow */
+/* Cashew — front-end joy + the freemium dig flow */
 (function () {
   "use strict";
 
@@ -74,7 +74,7 @@
   let CHOSEN = "pro"; // default-selected tier (the upsell)
 
   const SCAN_MSGS = [
-    "Pip is rummaging…",
+    "Cashew is rummaging…",
     "Sniffing out forgotten cards…",
     "Digging behind the spam…",
     "Counting the acorns…",
@@ -113,7 +113,7 @@
       .catch((err) => {
         clearInterval(cycle);
         overlay.hidden = true;
-        toast(err.message || "Pip got distracted by a nut. Try again?");
+        toast(err.message || "Cashew got distracted by a nut. Try again?");
       });
   }
 
@@ -126,7 +126,7 @@
     const stats = $("#scan-stats");
     overlay.hidden = false;
     prog.hidden = false;
-    msg.textContent = "Pip is digging through your inbox…";
+    msg.textContent = "Cashew is digging through your inbox…";
     bar.style.width = "0%";
     stats.textContent = "Starting…";
 
@@ -144,7 +144,7 @@
       .catch((err) => {
         overlay.hidden = true;
         prog.hidden = true;
-        toast(err.message || "Pip couldn't start digging.");
+        toast(err.message || "Cashew couldn't start digging.");
       });
 
     function poll(jobId) {
@@ -236,12 +236,12 @@
       $("#paywall").style.display = "none";
       $("#unlocked-banner").hidden = true;
       sec.querySelector(".results-head h2").textContent =
-        "Pip dug around but came up empty this time";
+        "Cashew dug around but came up empty this time";
       $("#res-total").parentElement.style.display = "none";
       $("#res-sub").innerHTML =
         data.source === "gmail"
-          ? "Your inbox is squeaky clean (or your stash is hiding under a different search). Pip will keep watch! 🐿️"
-          : "Nothing here — try the sample dig to see Pip in action.";
+          ? "Your inbox is squeaky clean (or your stash is hiding under a different search). Cashew will keep watch! 🐿️"
+          : "Nothing here — try the sample dig to see Cashew in action.";
       sec.scrollIntoView({ behavior: "smooth" });
       return;
     }
@@ -353,7 +353,7 @@
     banner.hidden = false;
     banner.classList.add("show");
     $("#ub-note").textContent = data.monitoring
-      ? "Every brand revealed below — and Pip's now watching your inbox for new stashes. 🐿️"
+      ? "Every brand revealed below — and Cashew's now watching your inbox for new stashes. 🐿️"
       : "Every brand + how to claim it is revealed below.";
     $("#res-sub").innerHTML =
       "All <b>" + data.items.length + "</b> stashes unlocked — go spend " +
@@ -392,7 +392,7 @@
     const btn = form.querySelector("button");
     const email = (input.value || "").trim();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-      formError(form, "pop in your email so Pip knows where to dig 🐿️");
+      formError(form, "pop in your email so Cashew knows where to dig 🐿️");
       input.focus();
       return;
     }

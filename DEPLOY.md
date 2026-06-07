@@ -1,4 +1,4 @@
-# Taking Pip live on pip.mixreflect.com
+# Taking Cashew live on pip.mixreflect.com
 
 The plan: deploy the app to a host (Render — easiest with Docker + free HTTPS),
 point a subdomain of your existing **mixreflect.com** at it, then update Google.
@@ -7,7 +7,7 @@ point a subdomain of your existing **mixreflect.com** at it, then update Google.
 ```bash
 git init
 git add .
-git commit -m "Pip"
+git commit -m "Cashew"
 # create a repo on github.com, then:
 git remote add origin https://github.com/<you>/pip.git
 git push -u origin main

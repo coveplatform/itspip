@@ -82,7 +82,7 @@ lumpy and one-time rather than recurring:
 
 ## The website (freemium SaaS)
 
-A cozy, hand-drawn landing page starring **Pip the squirrel**, with a real
+A cozy, hand-drawn landing page starring **Cashew the squirrel**, with a real
 working dig → paywall → unlock funnel. No front-end frameworks, no trackers.
 
 ```bash
@@ -92,12 +92,12 @@ python server.py
 ```
 
 **The funnel:**
-1. Enter email → Pip "scans" (the real `giftfinder` engine runs over a bundled
+1. Enter email → Cashew "scans" (the real `giftfinder` engine runs over a bundled
    **sample inbox** so the whole thing works with zero setup).
 2. Results: **one stash is revealed free**, the rest are **locked** — and the
    locked brands/codes are withheld *server-side*, so the paywall can't be
    bypassed by inspecting the page.
-3. A three-tier paywall **upsells** to *Pip Pro* (monthly monitoring), which is
+3. A three-tier paywall **upsells** to *Cashew Pro* (monthly monitoring), which is
    pre-selected as "most diggers pick this."
 4. Unlock → every brand + how-to-claim is revealed, with coin confetti.
 
