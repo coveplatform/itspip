@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Pip">
+  <!-- badge -->
+  <rect x="5" y="5" width="110" height="110" rx="28" fill="#fff7e9" stroke="#6f3f20" stroke-width="6"/>
+  <!-- ears (behind head) -->
+  <path d="M41 32 q-9 -22 9 -25 q15 3 11 27 z" fill="#b97a45" stroke="#6f3f20" stroke-width="4"/>
+  <path d="M79 32 q9 -22 -9 -25 q-15 3 -11 27 z" fill="#b97a45" stroke="#6f3f20" stroke-width="4"/>
+  <path d="M47 25 q-4 -10 6 -12 q8 2 5 13 z" fill="#f2b0aa"/>
+  <path d="M73 25 q4 -10 -6 -12 q-8 2 -5 13 z" fill="#f2b0aa"/>
+  <!-- head -->
+  <circle cx="60" cy="62" r="31" fill="#b97a45" stroke="#6f3f20" stroke-width="5"/>
+  <!-- cheeks -->
+  <ellipse cx="43" cy="70" rx="8" ry="5" fill="#f2a39c" opacity=".85"/>
+  <ellipse cx="77" cy="70" rx="8" ry="5" fill="#f2a39c" opacity=".85"/>
+  <!-- eyes -->
+  <circle cx="50" cy="60" r="6.5" fill="#3a2a1e"/>
+  <circle cx="70" cy="60" r="6.5" fill="#3a2a1e"/>
+  <circle cx="52" cy="57.5" r="2.2" fill="#fff"/>
+  <circle cx="72" cy="57.5" r="2.2" fill="#fff"/>
+  <!-- nose + smile -->
+  <path d="M55 70 q5 5 10 0 q-5 5 -5 8 q0 -3 -5 -8z" fill="#6f3f20"/>
+  <path d="M53 78 q7 6 14 0" fill="none" stroke="#6f3f20" stroke-width="2.6" stroke-linecap="round"/>
+  <!-- acorn accent -->
+  <g transform="translate(84,78)">
+    <path d="M2 7 q9 -10 18 0 q-9 5 -18 0z" fill="#8c5a2b" stroke="#5a3a18" stroke-width="2"/>
+    <path d="M5 9 q6 16 13 0 q-2 13 -6.5 16 q-4.5 -3 -6.5 -16z" fill="#d79a4f" stroke="#5a3a18" stroke-width="2"/>
+  </g>
+</svg>

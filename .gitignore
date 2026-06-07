@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.mbox
+!giftfinder/sample/demo.mbox
+.env
+venv/
+.venv/
+data/
+*.db
+*.json
+!giftfinder/**/*.json
