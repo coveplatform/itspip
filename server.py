@@ -56,9 +56,12 @@ if OAUTH_REDIRECT.startswith("http://"):
     os.environ.setdefault("OAUTHLIB_INSECURE_TRANSPORT", "1")
 GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 GMAIL_QUERY = (
-    '"gift card" OR "e-gift" OR egift OR "gift certificate" OR '
-    '"store credit" OR "account credit" OR "travel credit" OR '
-    'referral OR voucher OR "you earned" OR "reward credit"'
+    '"gift card" OR "e-gift" OR egift OR "gift certificate" OR "gift voucher" OR '
+    'voucher OR "store credit" OR "account credit" OR "merchandise credit" OR '
+    '"travel credit" OR "ride credit" OR "wallet credit" OR "you earned" OR '
+    '"you\'ve earned" OR "reward credit" OR "bonus credit" OR "your balance" OR '
+    '"remaining balance" OR "your reward" OR redeem OR refund OR cashback OR '
+    '"cash back" OR "credit has been added" OR "added to your account"'
 )
 # Launch-day social-proof seed for the "early diggers" counter.
 # Set to 0 to show the true signup count only.
@@ -110,24 +113,34 @@ def _run_gmail_scan(creds_dict: dict, limit: int = GMAIL_SCAN_LIMIT) -> list:
 
     creds = Credentials(**creds_dict)
     service = build("gmail", "v1", credentials=creds, cache_discovery=False)
-    listing = (
-        service.users()
-        .messages()
-        .list(userId="me", q=GMAIL_QUERY, maxResults=limit)
-        .execute()
-    )
     findings = []
-    for ref in listing.get("messages", []):
-        msg = (
+    seen = 0
+    page_token = None
+    # Page through every matching message. limit=0 means "no cap — scan it all".
+    while True:
+        listing = (
             service.users()
             .messages()
-            .get(userId="me", id=ref["id"], format="raw")
+            .list(userId="me", q=GMAIL_QUERY, maxResults=100, pageToken=page_token)
             .execute()
         )
-        raw = base64.urlsafe_b64decode(msg["raw"].encode("utf-8"))
-        f = detect(email_from_bytes(raw), min_confidence=0.45)
-        if f:
-            findings.append(f)
+        for ref in listing.get("messages", []):
+            msg = (
+                service.users()
+                .messages()
+                .get(userId="me", id=ref["id"], format="raw")
+                .execute()
+            )
+            raw = base64.urlsafe_b64decode(msg["raw"].encode("utf-8"))
+            f = detect(email_from_bytes(raw), min_confidence=0.45)
+            if f:
+                findings.append(f)
+            seen += 1
+            if limit and seen >= limit:
+                break
+        page_token = listing.get("nextPageToken")
+        if not page_token or (limit and seen >= limit):
+            break
     return [_to_dict(f) for f in dedupe(findings)]
 
 

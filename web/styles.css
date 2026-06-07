@@ -481,18 +481,75 @@ details p{margin:0 0 1rem; color:var(--ink-soft); font-weight:600;}
 .reveal.d3{transition-delay:.3s;} .reveal.d4{transition-delay:.4s;}
 
 /* ---------- responsive ---------- */
+
+/* tablet & down — single-column hero, two-up grids */
 @media (max-width:880px){
-  .hero{grid-template-columns:1fr; text-align:center;}
-  .hero-copy .join-form, .hero-copy .microtrust{justify-content:center; margin-inline:auto;}
-  .hero-art{order:-1; min-height:280px;}
-  .steps,.tiles,.notes{grid-template-columns:1fr 1fr;}
+  .hero{grid-template-columns:1fr; text-align:center; gap:1rem;
+    padding-top:clamp(1.5rem,5vw,3rem);}
+  .hero-copy{display:flex; flex-direction:column; align-items:center;}
+  .hero-copy .join-form,
+  .hero-copy .connect-note,
+  .hero-copy .trust-row,
+  .hero-copy .microtrust{justify-content:center; margin-inline:auto;}
+  .lead{margin-inline:auto;}
+  .hero-art{order:-1; min-height:clamp(220px,42vw,300px);}
+  .steps,.tiles,.notes{grid-template-columns:repeat(2,1fr);}
   .nav-links{display:none;}
+  /* with the links hidden, keep the CTA pinned to the right */
+  .nav > .btn{margin-left:auto;}
+  /* trail only makes sense across 3 columns */
+  .steps::before{display:none;}
 }
+
+/* tablet portrait niceties */
+@media (max-width:760px){
+  .tiers{grid-template-columns:1fr;}
+  .proof{gap:1rem; margin-bottom:3rem;}
+  /* tame the organic bands so curves stay shallow on small screens */
+  .band::before{top:-22px; bottom:-22px; border-radius:50% / 30px;}
+}
+
+/* phones */
 @media (max-width:560px){
-  .steps,.tiles,.notes{grid-template-columns:1fr;}
-  .proof-card{flex-basis:100%;}
-  .hero h1{font-size:2.3rem;}
+  .nav{padding:.6rem 1rem; gap:.6rem;}
+  .brand{font-size:1.3rem;}
+  .brand-pip{height:38px;}
+
+  .hero{padding-left:1.2rem; padding-right:1.2rem;}
+  .hero h1{font-size:clamp(2.1rem,9vw,2.6rem);}
+  .lead{font-size:1.05rem;}
+
+  /* stack the email form into full-width, thumb-friendly controls */
+  .join-form{flex-direction:column; align-items:stretch; max-width:24rem; width:100%;}
+  .join-form input{min-width:0; width:100%; text-align:center;}
+  .join-form .btn-primary{width:100%; justify-content:center; font-size:1.1rem; padding:.85rem 1.4rem;}
+  .join-form.big{max-width:24rem;}
+
+  /* one-up everything that was a grid */
+  .steps,.tiles,.notes{grid-template-columns:1fr; gap:1.2rem;}
+  .proof{flex-direction:column; align-items:center;}
+  .proof-card{flex-basis:auto; width:100%; max-width:22rem;}
+  .result-grid{grid-template-columns:1fr;}
+
+  /* trim hero clutter: drop the small floating doodles on tiny screens */
+  .float{display:none;}
+
+  /* soften the big offset shadows so cards don't feel heavy on small screens */
+  :root{--pop:4px 4px 0 var(--shadow); --pop-sm:3px 3px 0 var(--shadow);}
+
+  .section-title{font-size:clamp(1.7rem,6.5vw,2.2rem);}
+  .promise-card{padding:3.4rem 1.3rem 2rem;}
+  .cta-inner{padding:2.4rem 1.2rem;}
+  .footer{padding:2rem 1rem 2.6rem;}
 }
+
+/* very small phones */
+@media (max-width:380px){
+  .hero h1{font-size:2rem;}
+  .res-total{font-size:3.2rem;}
+  .trust-row{font-size:.85rem;}
+}
+
 @media (prefers-reduced-motion:reduce){
   *{animation:none!important; transition:none!important;}
   .reveal{opacity:1; transform:none;}
