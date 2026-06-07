@@ -9,13 +9,9 @@ Run it:
     # then open http://127.0.0.1:8000
 """
 import base64
-import json
 import os
 import re
 import secrets
-import sqlite3
-import tempfile
-import time
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -23,6 +19,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
+import store
 from giftfinder.detect import detect
 from giftfinder.report import dedupe
 from giftfinder.sources import email_from_bytes, iter_mbox
@@ -31,15 +28,6 @@ os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
 
 BASE = Path(__file__).parent
 WEB = BASE / "web"
-# Prefer ./data, but fall back to a writable temp dir on read-only hosts
-# (e.g. serverless platforms where the app directory can't be written).
-DATA = Path(os.environ.get("PIP_DATA_DIR", str(BASE / "data")))
-try:
-    DATA.mkdir(parents=True, exist_ok=True)
-except OSError:
-    DATA = Path(tempfile.gettempdir()) / "pip-data"
-    DATA.mkdir(parents=True, exist_ok=True)
-DB = DATA / "waitlist.db"
 SAMPLE_MBOX = BASE / "giftfinder" / "sample" / "demo.mbox"
 
 
@@ -72,9 +60,6 @@ GMAIL_QUERY = (
     '"store credit" OR "account credit" OR "travel credit" OR '
     'referral OR voucher OR "you earned" OR "reward credit"'
 )
-# session-id -> stored credentials (in-memory; fine for a single-process app)
-_GMAIL_SESSIONS: dict = {}
-
 # Launch-day social-proof seed for the "early diggers" counter.
 # Set to 0 to show the true signup count only.
 SEED_DIGGERS = 1283
@@ -111,10 +96,11 @@ def _client_config() -> dict:
     }
 
 
-def _run_gmail_scan(creds_dict: dict, limit: int = 80) -> list:
+def _run_gmail_scan(creds_dict: dict, limit: int = 25) -> list:
     """Fetch money-bearing mail read-only via the Gmail API and run detection.
 
     Emails are parsed and scored in memory and discarded — nothing is persisted.
+    Limit kept modest so a scan finishes within serverless function timeouts.
     """
     from google.oauth2.credentials import Credentials
     from googleapiclient.discovery import build
@@ -142,26 +128,10 @@ def _run_gmail_scan(creds_dict: dict, limit: int = 80) -> list:
     return [_to_dict(f) for f in dedupe(findings)]
 
 
-def _db() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB)
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS waitlist ("
-        "email TEXT PRIMARY KEY, created REAL)"
-    )
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS scans ("
-        "id TEXT PRIMARY KEY, created REAL, paid INTEGER DEFAULT 0, "
-        "tier TEXT, email TEXT, items TEXT)"
-    )
-    return conn
-
-
-def _count() -> int:
-    conn = _db()
-    try:
-        return conn.execute("SELECT COUNT(*) FROM waitlist").fetchone()[0]
-    finally:
-        conn.close()
+try:
+    store.init()
+except Exception as e:  # noqa: BLE001 — don't crash boot if the DB is briefly unavailable
+    print(f"[pip] store.init failed ({store.backend()}): {e}")
 
 
 def _redeem_hint(brand: str, kind: str) -> str:
@@ -236,7 +206,7 @@ def terms():
 
 @app.get("/api/stats")
 def stats():
-    return {"diggers": SEED_DIGGERS + _count(), "avg_stash": AVG_STASH}
+    return {"diggers": SEED_DIGGERS + store.waitlist_count(), "avg_stash": AVG_STASH}
 
 
 @app.post("/api/waitlist")
@@ -251,16 +221,7 @@ async def join(request: Request):
             {"ok": False, "error": "hmm, that doesn't look like an email 🐿️"},
             status_code=400,
         )
-    conn = _db()
-    try:
-        conn.execute(
-            "INSERT OR IGNORE INTO waitlist (email, created) VALUES (?, ?)",
-            (email, time.time()),
-        )
-        conn.commit()
-        n = conn.execute("SELECT COUNT(*) FROM waitlist").fetchone()[0]
-    finally:
-        conn.close()
+    n = store.add_waitlist(email)
     return {"ok": True, "diggers": SEED_DIGGERS + n}
 
 
@@ -278,22 +239,13 @@ async def scan(request: Request):
     email = (body.get("email") or "").strip().lower()
     source = body.get("source") or "demo"
     if email and EMAIL_RE.match(email):
-        conn = _db()
-        try:
-            conn.execute(
-                "INSERT OR IGNORE INTO waitlist (email, created) VALUES (?, ?)",
-                (email, time.time()),
-            )
-            conn.commit()
-        finally:
-            conn.close()
+        store.add_waitlist(email)
 
     if source == "gmail":
-        sid = request.session.get("gmail_sid")
-        creds = _GMAIL_SESSIONS.get(sid)
+        creds = request.session.get("gmail_creds")
         if not creds:
             return JSONResponse(
-                {"error": "Gmail isn't connected. Click “Connect Gmail” first 🐿️"},
+                {"error": "Gmail isn't connected — tap “Dig up my money” to connect 🐿️"},
                 status_code=400,
             )
         try:
@@ -306,15 +258,7 @@ async def scan(request: Request):
         items = _run_sample_scan()
 
     scan_id = secrets.token_urlsafe(9)
-    conn = _db()
-    try:
-        conn.execute(
-            "INSERT INTO scans (id, created, paid, email, items) VALUES (?,?,0,?,?)",
-            (scan_id, time.time(), email, json.dumps(items)),
-        )
-        conn.commit()
-    finally:
-        conn.close()
+    store.save_scan(scan_id, email, items)
 
     if not items:
         return {
@@ -337,9 +281,8 @@ async def scan(request: Request):
 # --- Gmail OAuth (read-only) ----------------------------------------------
 @app.get("/api/me")
 def me(request: Request):
-    sid = request.session.get("gmail_sid")
     return {
-        "connected": bool(sid and sid in _GMAIL_SESSIONS),
+        "connected": bool(request.session.get("gmail_creds")),
         "configured": bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET),
     }
 
@@ -373,8 +316,9 @@ def google_callback(request: Request):
     except Exception:
         return RedirectResponse("/?gmail=error")
     creds = flow.credentials
-    sid = secrets.token_urlsafe(12)
-    _GMAIL_SESSIONS[sid] = {
+    # Stored in the signed session cookie (not server memory) so it survives
+    # across serverless instances. It's the user's own token in their own cookie.
+    request.session["gmail_creds"] = {
         "token": creds.token,
         "refresh_token": creds.refresh_token,
         "token_uri": creds.token_uri,
@@ -382,15 +326,12 @@ def google_callback(request: Request):
         "client_secret": creds.client_secret,
         "scopes": creds.scopes,
     }
-    request.session["gmail_sid"] = sid
     return RedirectResponse("/?connected=1")
 
 
 @app.post("/auth/disconnect")
 def disconnect(request: Request):
-    sid = request.session.pop("gmail_sid", None)
-    if sid:
-        _GMAIL_SESSIONS.pop(sid, None)
+    request.session.pop("gmail_creds", None)
     return {"ok": True}
 
 
@@ -410,24 +351,15 @@ async def unlock(scan_id: str, request: Request):
     if tier not in TIERS:
         return JSONResponse({"ok": False, "error": "unknown tier"}, status_code=400)
 
-    conn = _db()
-    try:
-        row = conn.execute(
-            "SELECT items FROM scans WHERE id = ?", (scan_id,)
-        ).fetchone()
-        if not row:
-            return JSONResponse(
-                {"ok": False, "error": "that dig has wandered off 🐿️"},
-                status_code=404,
-            )
-        conn.execute(
-            "UPDATE scans SET paid = 1, tier = ? WHERE id = ?", (tier, scan_id)
+    rec = store.get_scan(scan_id)
+    if not rec:
+        return JSONResponse(
+            {"ok": False, "error": "that dig has wandered off 🐿️"},
+            status_code=404,
         )
-        conn.commit()
-    finally:
-        conn.close()
+    store.mark_paid(scan_id, tier)
 
-    items = json.loads(row[0])
+    items = rec["items"]
     return {
         "ok": True,
         "paid": True,
