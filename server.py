@@ -57,13 +57,21 @@ OAUTH_REDIRECT = os.environ.get(
 if OAUTH_REDIRECT.startswith("http://"):
     os.environ.setdefault("OAUTHLIB_INSECURE_TRANSPORT", "1")
 GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
-GMAIL_QUERY = (
-    '"gift card" OR "e-gift" OR egift OR "gift certificate" OR "gift voucher" OR '
-    'voucher OR "store credit" OR "account credit" OR "merchandise credit" OR '
-    '"travel credit" OR "ride credit" OR "wallet credit" OR "you earned" OR '
-    '"you\'ve earned" OR "reward credit" OR "bonus credit" OR "your balance" OR '
-    '"remaining balance" OR "your reward" OR redeem OR refund OR cashback OR '
-    '"cash back" OR "credit has been added" OR "added to your account"'
+# Deliberately wide net — recall over precision. Gmail searches the full text
+# of every email server-side; the detector filters false positives afterwards.
+GMAIL_QUERY = " OR ".join(
+    f'"{t}"' if " " in t else t
+    for t in [
+        "gift card", "e-gift", "egift", "egift card", "gift certificate",
+        "gift voucher", "voucher", "e-voucher", "digital gift", "evoucher",
+        "store credit", "account credit", "merchandise credit", "travel credit",
+        "wallet credit", "in-store credit", "credit balance", "your balance",
+        "available balance", "remaining balance", "you earned", "you've earned",
+        "reward credit", "rewards balance", "bonus credit", "in points",
+        "points balance", "cashback", "cash back", "loyalty points",
+        "added to your account", "added to your wallet", "credited to your",
+        "you've got", "redeem", "refund", "credited",
+    ]
 )
 # Launch-day social-proof seed for the "early diggers" counter.
 # Set to 0 to show the true signup count only.
@@ -149,9 +157,9 @@ def _run_gmail_scan(creds_dict: dict, limit: int = GMAIL_SCAN_LIMIT) -> list:
 # --- Deep scan (every email) with live progress ---------------------------
 # job_id -> {scanned, total, found, done, error, scan_id, email}
 _SCAN_JOBS: dict = {}
-# Deep scan reads EVERY message (no search filter). Set GMAIL_DEEP=0 to scan
-# only money-bearing mail instead (faster).
-GMAIL_DEEP = os.environ.get("GMAIL_DEEP", "1") == "1"
+# GMAIL_DEEP=1 reads EVERY message (slow on big inboxes). =0 uses Gmail search
+# to grab only money-bearing mail (fast, finds the same stashes).
+GMAIL_DEEP = os.environ.get("GMAIL_DEEP", "0") == "1"
 
 
 def _deep_scan_worker(job_id: str, creds_dict: dict, email: str) -> None:
@@ -164,34 +172,42 @@ def _deep_scan_worker(job_id: str, creds_dict: dict, email: str) -> None:
         service = build("gmail", "v1", credentials=creds, cache_discovery=False)
         query = None if GMAIL_DEEP else GMAIL_QUERY
 
-        # rough total for the progress bar
-        head = service.users().messages().list(
-            userId="me", q=query, maxResults=1
-        ).execute()
-        job["total"] = head.get("resultSizeEstimate", 0)
-
-        findings = []
+        # 1) Collect message ids (fast — ids only, no bodies).
+        ids = []
         page_token = None
         while True:
             listing = service.users().messages().list(
-                userId="me", q=query, maxResults=100, pageToken=page_token
+                userId="me", q=query, maxResults=500, pageToken=page_token
             ).execute()
-            for ref in listing.get("messages", []):
+            ids += [m["id"] for m in listing.get("messages", [])]
+            page_token = listing.get("nextPageToken")
+            if not page_token:
+                break
+        job["total"] = len(ids)
+        print(f"[pip] deep={GMAIL_DEEP} candidates={len(ids)}", flush=True)
+
+        # 2) Batch-download 100 at a time (≈100× fewer round-trips) + detect.
+        findings = []
+
+        def _cb(request_id, response, exception):
+            job["scanned"] += 1
+            if exception is None and response and "raw" in response:
                 try:
-                    msg = service.users().messages().get(
-                        userId="me", id=ref["id"], format="raw"
-                    ).execute()
-                    raw = base64.urlsafe_b64decode(msg["raw"].encode("utf-8"))
+                    raw = base64.urlsafe_b64decode(response["raw"].encode("utf-8"))
                     f = detect(email_from_bytes(raw), min_confidence=0.45)
                     if f:
                         findings.append(f)
                         job["found"] = len(findings)
                 except Exception:
-                    pass  # skip a bad/oversized message, keep going
-                job["scanned"] += 1
-            page_token = listing.get("nextPageToken")
-            if not page_token:
-                break
+                    pass
+
+        for i in range(0, len(ids), 100):
+            batch = service.new_batch_http_request(callback=_cb)
+            for mid in ids[i:i + 100]:
+                batch.add(
+                    service.users().messages().get(userId="me", id=mid, format="raw")
+                )
+            batch.execute()
 
         items = [_to_dict(f) for f in dedupe(findings)]
         scan_id = secrets.token_urlsafe(9)

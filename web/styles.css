@@ -493,7 +493,10 @@ details p{margin:0 0 1rem; color:var(--ink-soft); font-weight:600;}
 @media (max-width:880px){
   .hero{grid-template-columns:1fr; text-align:center; gap:1rem;
     padding-top:clamp(1.5rem,5vw,3rem);}
-  .hero-copy{display:flex; flex-direction:column; align-items:center;}
+  /* stretch (not center) so children fill the width and text wraps,
+     instead of sizing to content and overflowing the screen */
+  .hero-copy{display:flex; flex-direction:column; align-items:stretch;}
+  .hero-copy h1, .hero-copy .lead{max-width:100%;}
   .hero-copy .join-form,
   .hero-copy .connect-note,
   .hero-copy .trust-row,
@@ -537,7 +540,8 @@ details p{margin:0 0 1rem; color:var(--ink-soft); font-weight:600;}
   /* stack the email form into a tidy, full-width pair of controls.
      a 12px rounded rectangle reads as a real input (not a giant pill) */
   .join-form{flex-direction:column; align-items:stretch; max-width:20rem; width:100%; gap:.55rem;}
-  .join-form input{min-width:0; width:100%; text-align:left; font-size:1rem; font-weight:600;
+  /* flex:none stops flex-basis:20rem from becoming the input's HEIGHT in a column */
+  .join-form input{flex:0 0 auto; min-width:0; width:100%; text-align:left; font-size:1rem; font-weight:600;
     padding:.7rem .95rem; border-width:2px; border-radius:12px; box-shadow:none;}
   .join-form .btn-primary{width:100%; justify-content:center; font-size:1.02rem;
     padding:.75rem 1.2rem; border-radius:12px;}
