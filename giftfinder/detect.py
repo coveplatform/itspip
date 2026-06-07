@@ -54,7 +54,7 @@ POSSESSION_SIGNALS = [
 # Language that means money is being *dangled*, not held. If present without a
 # genuine possession signal, we drop the email — even if it quotes a number.
 MARKETING_SIGNALS = [
-    "shop now", "buy a gift card", "buy gift cards", "give the gift",
+    "shop now", "buy a gift card", "buy gift card", "buy gift cards", "give the gift",
     "perfect gift", "sale ends", "shop gift cards", "order a gift card",
     "gift cards make", "send a gift card", "refer a friend", "refer friends",
     "refer a ", "invite a friend", "invite friends", "invite your friends",
@@ -64,6 +64,9 @@ MARKETING_SIGNALS = [
     "refer and earn", "share your link", "referral link", "give $", "give and get",
     "start earning", "earn rewards", "sign up and", "get started", "promo code",
     "discount code", "coupon",
+    # event / ticket marketing (Fever, Palace Cinemas, etc. that name-drop a gift card)
+    "get tickets", "get your tickets", "buy tickets", "book now", "book tickets",
+    "session times", "view showtimes", "browse movies", "browse gift cards",
 ]
 
 # If any of these appear, it isn't held consumer money — drop the email outright.
@@ -82,8 +85,9 @@ HARD_EXCLUDE = [
     "subscription", "free trial", "renew your", "your plan",
 ]
 
-# Amounts right after these words are offers/discounts, not held balances.
-AMOUNT_SKIP_BEFORE = ("up to", "upto", "save", "spend", "earn up to", "as much as")
+# Amounts right after these words are offers/prices, not held balances
+# ("from $35" is a ticket price; "save $20" is a discount).
+AMOUNT_SKIP_BEFORE = ("up to", "upto", "save", "spend", "earn up to", "as much as", "from")
 
 # Senders that are never a held stash — known course/coaching & sweepstakes
 # marketers that dangle "$X gift card" inside a sales pitch. Dropped outright,

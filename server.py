@@ -203,10 +203,23 @@ GMAIL_DEEP = os.environ.get("GMAIL_DEEP", "0") == "1"
 def _deep_scan_worker(job_id: str, creds_dict: dict, email: str) -> None:
     job = _SCAN_JOBS[job_id]
     try:
+        import threading
+        from concurrent.futures import ThreadPoolExecutor
+
+        import httplib2
         from google.oauth2.credentials import Credentials
+        from google_auth_httplib2 import AuthorizedHttp
         from googleapiclient.discovery import build
 
         creds = Credentials(**creds_dict)
+        # Pre-refresh once so the download threads share a valid token instead of
+        # racing to refresh it mid-scan.
+        try:
+            from google.auth.transport.requests import Request as _AuthRequest
+            if not creds.valid:
+                creds.refresh(_AuthRequest())
+        except Exception:
+            pass
         service = build("gmail", "v1", credentials=creds, cache_discovery=False)
         query = None if GMAIL_DEEP else GMAIL_QUERY
 
@@ -224,37 +237,62 @@ def _deep_scan_worker(job_id: str, creds_dict: dict, email: str) -> None:
         job["total"] = len(ids)
         print(f"[pip] deep={GMAIL_DEEP} candidates={len(ids)}", flush=True)
 
-        # 2) Batch-download 100 at a time (≈100× fewer round-trips) + detect.
-        findings = []
+        lock = threading.Lock()
+        candidates = []   # (email, keyword-finding) pairs that survived the keyword pass
         spent = set()
 
-        def _cb(request_id, response, exception):
-            job["scanned"] += 1
-            if exception is None and response and "raw" in response:
-                try:
-                    raw = base64.urlsafe_b64decode(response["raw"].encode("utf-8"))
-                    em = email_from_bytes(raw)
-                    f = _detect(em)
-                    if f:
-                        findings.append(f)
-                        job["found"] = len(findings)
-                        if f.amount:
-                            job["finds"].append({"amount": f.amount, "currency": f.currency})
-                    rb = redemption_brand(em)
-                    if rb:
-                        spent.add(rb.lower())
-                except Exception:
-                    pass
+        # 2) Download batches concurrently (a few at once). The service is only
+        #    used to BUILD requests (thread-safe); each thread executes on its own
+        #    AuthorizedHttp so the connections don't collide.
+        def _download_chunk(chunk):
+            http = AuthorizedHttp(creds, http=httplib2.Http())
+            local_cand, local_spent, local_n = [], set(), 0
 
-        for i in range(0, len(ids), 100):
+            def _cb(request_id, response, exception):
+                nonlocal local_n
+                local_n += 1
+                if exception is None and response and "raw" in response:
+                    try:
+                        raw = base64.urlsafe_b64decode(response["raw"].encode("utf-8"))
+                        em = email_from_bytes(raw)
+                        kf = detect(em, min_confidence=0.45)  # cheap keyword pass only
+                        if kf:
+                            local_cand.append((em, kf))
+                        rb = redemption_brand(em)
+                        if rb:
+                            local_spent.add(rb.lower())
+                    except Exception:
+                        pass
+
             batch = service.new_batch_http_request(callback=_cb)
-            for mid in ids[i:i + 100]:
-                batch.add(
-                    service.users().messages().get(userId="me", id=mid, format="raw")
-                )
-            batch.execute()
+            for mid in chunk:
+                batch.add(service.users().messages().get(userId="me", id=mid, format="raw"))
+            batch.execute(http=http)
+            with lock:
+                candidates.extend(local_cand)
+                spent.update(local_spent)
+                job["scanned"] += local_n
 
-        items = [_to_dict(f) for f in dedupe(findings)]
+        chunks = [ids[i:i + 100] for i in range(0, len(ids), 100)]
+        if chunks:
+            with ThreadPoolExecutor(max_workers=min(5, len(chunks))) as pool:
+                list(pool.map(_download_chunk, chunks))
+
+        # 3) Run the LLM precision filter on the survivors concurrently (no-op when
+        #    no API key is set) — the other big serial bottleneck.
+        findings = []
+        if candidates:
+            workers = min(8, len(candidates)) if verification_enabled() else 1
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                for v in pool.map(lambda p: verify_finding(p[0], p[1]), candidates):
+                    if v:
+                        findings.append(v)
+                        with lock:
+                            job["found"] = len(findings)
+                            if v.amount:
+                                job["finds"].append({"amount": v.amount, "currency": v.currency})
+
+        items = [_to_dict(f) for f in dedupe(_drop_spent(findings, spent))]
         scan_id = secrets.token_urlsafe(9)
         store.save_scan(scan_id, email, items)
         job["scan_id"] = scan_id
