@@ -18,7 +18,7 @@ services:
       - key: GMAIL_DEEP
         value: "0"                     # wide smart search (fast). "1" = every email
       - key: OAUTH_REDIRECT
-        value: https://cashew.onrender.com/auth/google/callback
+        value: https://heycashew.com/auth/google/callback
       - key: GOOGLE_CLIENT_ID
         sync: false                    # set in the Render dashboard (secret)
       - key: GOOGLE_CLIENT_SECRET
