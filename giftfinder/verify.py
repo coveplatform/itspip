@@ -106,6 +106,7 @@ _SCHEMA = {
 
 _client = None      # lazily created provider client
 _provider = None    # "anthropic" | "openai"
+_disabled = False   # set True after an auth failure so we stop hammering a bad key
 
 
 def _pick_provider() -> Optional[str]:
@@ -195,6 +196,8 @@ def verify_finding(email: Email, finding: Finding) -> Optional[Finding]:
     verification is unavailable or errors, the original finding is returned
     unchanged — we never drop real money over a transient API hiccup.
     """
+    if _disabled:
+        return finding
     provider, client = _get_client()
     if client is None:
         return finding
@@ -227,7 +230,18 @@ def verify_finding(email: Email, finding: Finding) -> Optional[Finding]:
     try:
         verdict = _ask_anthropic(client, user) if provider == "anthropic" else _ask_openai(client, user)
     except Exception as e:  # noqa: BLE001 — fail open, keep the keyword verdict
-        print(f"[cashew] verify skipped ({type(e).__name__}): {e}", flush=True)
+        global _disabled
+        name = type(e).__name__
+        status = getattr(e, "status_code", None)
+        if name == "AuthenticationError" or status in (401, 403):
+            _disabled = True  # bad/expired key — stop trying for the rest of this process
+            print(
+                f"[cashew] LLM filter DISABLED ({status or name}) — check the API key. "
+                "Falling back to keyword detection for this scan.",
+                flush=True,
+            )
+        else:
+            print(f"[cashew] verify skipped ({name}): {e}", flush=True)
         return finding
 
     if not verdict.get("held"):
