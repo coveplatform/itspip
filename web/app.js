@@ -406,14 +406,43 @@
     })
       .then((r) => r.json())
       .then((data) => {
+        if (data.checkout_url) {           // Stripe → hosted checkout
+          window.location.href = data.checkout_url;
+          return;
+        }
         if (!data.ok) throw new Error();
-        revealAll(data);
+        revealAll(data);                   // already paid / free dev path
       })
       .catch(() => {
         btn.disabled = false;
         btn.innerHTML = 'Unlock everything<svg class="btn-paw" viewBox="0 0 40 40"><use href="#paw"/></svg>';
         alert("Payment hiccup — try again?");
       });
+  }
+
+  // After returning from Stripe (success_url …/?unlocked=<scan_id>), poll until
+  // the webhook has marked the scan paid, then reveal the full results.
+  function showUnlocked(scanId, tries) {
+    tries = tries || 0;
+    const sec = $("#results");
+    sec.hidden = false;
+    fetch("/api/scan/unlocked/" + scanId)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.ok === false) { toast("Couldn't load your unlock — refresh in a moment."); return; }
+        if (!data.paid) {
+          if (tries < 20) { setTimeout(() => showUnlocked(scanId, tries + 1), 1200); return; }
+          toast("Payment is confirming — refresh in a few seconds. 🐿️");
+          return;
+        }
+        const sub = $("#res-sub");
+        sec.querySelector(".results-head h2").textContent = "Your stash — unlocked 🎉";
+        const tot = $("#res-total");
+        if (tot) { tot.parentElement.style.display = ""; countUp(tot, data.total, true); }
+        revealAll(data);
+        sec.scrollIntoView({ behavior: "smooth" });
+      })
+      .catch(() => toast("Couldn't load your unlock — refresh in a moment."));
   }
 
   function fullCard(item) {
@@ -540,6 +569,12 @@
     try { email = localStorage.getItem("pip_email") || ""; } catch (e) {}
     toast("Gmail connected! 🐿️ Digging through your inbox…");
     startScan(email);
+  } else if (params.get("unlocked")) {
+    // returning from a successful Stripe payment
+    const sid = params.get("unlocked");
+    history.replaceState({}, "", location.pathname);
+    toast("Payment received — unlocking your stash! 🎉");
+    showUnlocked(sid);
   } else if (params.get("gmail") === "unconfigured") {
     history.replaceState({}, "", location.pathname);
     toast("Gmail isn't set up on this server yet — see GMAIL_SETUP.md.");

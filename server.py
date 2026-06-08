@@ -58,6 +58,22 @@ OAUTH_REDIRECT = os.environ.get(
 if OAUTH_REDIRECT.startswith("http://"):
     os.environ.setdefault("OAUTHLIB_INSECURE_TRANSPORT", "1")
 GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
+
+# --- Stripe (one-time unlock) ---------------------------------------------
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+UNLOCK_PRICE_CENTS = int(os.environ.get("UNLOCK_PRICE_CENTS", "495"))  # $4.95
+# Public origin for Stripe redirect URLs, derived from the OAuth redirect.
+SITE_ORIGIN = OAUTH_REDIRECT.split("/auth/")[0] or "http://127.0.0.1:8000"
+
+
+def _stripe():
+    """Return the configured stripe module, or None if no key is set (dev)."""
+    if not STRIPE_SECRET_KEY:
+        return None
+    import stripe
+    stripe.api_key = STRIPE_SECRET_KEY
+    return stripe
 # Deliberately wide net — recall over precision. Gmail searches the full text
 # of every email server-side; the detector filters false positives afterwards.
 # Focused on high-signal gift-card / store-credit language. Broad terms like
@@ -83,7 +99,7 @@ AVG_STASH = 175
 # Unlock tiers (the upsell). Prices are display-only here; wire to Stripe to
 # charge for real (see _unlock below).
 TIERS = {
-    "once": {"label": "Unlock this dig", "price": "$4", "blurb": "See every brand + exactly how to claim each one."},
+    "once": {"label": "Unlock this dig", "price": "$4.95", "blurb": "See every brand + exactly how to claim each one."},
 }
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -704,14 +720,24 @@ def disconnect(request: Request):
     return {"ok": True}
 
 
+def _unlocked_payload(scan_id: str, rec: dict, tier: str = "once") -> dict:
+    items = rec["items"]
+    return {
+        "ok": True,
+        "paid": True,
+        "tier": tier,
+        "tier_label": TIERS.get(tier, TIERS["once"])["label"],
+        "items": items,
+        "total": round(sum(i["amount"] or 0 for i in items), 2),
+        "currency": items[0]["currency"] if items else "USD",
+    }
+
+
 @app.post("/api/unlock/{scan_id}")
 async def unlock(scan_id: str, request: Request):
-    """Unlock a scan. This is where real money would change hands.
-
-    To charge for real: create a Stripe Checkout Session here, return its URL,
-    and only flip `paid=1` from the Stripe webhook. For now we unlock directly
-    so the full experience works end-to-end.
-    """
+    """Start payment for a scan. With Stripe configured, returns a Checkout URL
+    and the scan is only revealed after the webhook confirms payment. Without a
+    Stripe key (local dev) it unlocks directly so the flow still works."""
     try:
         body = await request.json()
     except Exception:
@@ -726,18 +752,65 @@ async def unlock(scan_id: str, request: Request):
             {"ok": False, "error": "that dig has wandered off 🐿️"},
             status_code=404,
         )
-    store.mark_paid(scan_id, tier)
+    if rec.get("paid"):  # already paid — just reveal
+        return _unlocked_payload(scan_id, rec, tier)
 
-    items = rec["items"]
-    return {
-        "ok": True,
-        "paid": True,
-        "tier": tier,
-        "tier_label": TIERS[tier]["label"],
-        "items": items,
-        "total": round(sum(i["amount"] or 0 for i in items), 2),
-        "currency": items[0]["currency"] if items else "USD",
-    }
+    stripe = _stripe()
+    if stripe is None:  # no Stripe configured (local/dev) — unlock free
+        store.mark_paid(scan_id, tier)
+        return _unlocked_payload(scan_id, store.get_scan(scan_id), tier)
+
+    try:
+        session = stripe.checkout.Session.create(
+            mode="payment",
+            line_items=[{
+                "price_data": {
+                    "currency": "usd",
+                    "product_data": {"name": "Cashew — unlock this dig"},
+                    "unit_amount": UNLOCK_PRICE_CENTS,
+                },
+                "quantity": 1,
+            }],
+            metadata={"scan_id": scan_id, "tier": tier},
+            success_url=f"{SITE_ORIGIN}/?unlocked={scan_id}",
+            cancel_url=f"{SITE_ORIGIN}/?dig={scan_id}",
+        )
+    except Exception as e:  # noqa: BLE001
+        return JSONResponse({"ok": False, "error": f"payment error: {e}"}, status_code=502)
+    return {"ok": True, "checkout_url": session.url}
+
+
+@app.post("/api/stripe/webhook")
+async def stripe_webhook(request: Request):
+    """Stripe's authoritative payment confirmation — the ONLY place we mark a
+    scan paid. Verifies the signature, then flips paid on checkout completion."""
+    stripe = _stripe()
+    if stripe is None or not STRIPE_WEBHOOK_SECRET:
+        return JSONResponse({"ok": False}, status_code=400)
+    payload = await request.body()
+    sig = request.headers.get("stripe-signature", "")
+    try:
+        event = stripe.Webhook.construct_event(payload, sig, STRIPE_WEBHOOK_SECRET)
+    except Exception:  # bad signature / malformed
+        return JSONResponse({"ok": False}, status_code=400)
+    if event.get("type") == "checkout.session.completed":
+        meta = (event["data"]["object"].get("metadata") or {})
+        scan_id = meta.get("scan_id")
+        if scan_id:
+            store.mark_paid(scan_id, meta.get("tier") or "once")
+    return {"ok": True}
+
+
+@app.get("/api/scan/unlocked/{scan_id}")
+def scan_unlocked(scan_id: str):
+    """After returning from Stripe, the page polls this until the webhook has
+    marked the scan paid, then reveals the full results."""
+    rec = store.get_scan(scan_id)
+    if rec is None:
+        return JSONResponse({"ok": False, "error": "unknown scan"}, status_code=404)
+    if not rec.get("paid"):
+        return {"ok": True, "paid": False}  # webhook not processed yet — keep polling
+    return _unlocked_payload(scan_id, rec)
 
 
 # Static assets (styles.css, app.js, ...). Mounted last so the routes above win.

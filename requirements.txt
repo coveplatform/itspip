@@ -13,3 +13,5 @@ google-auth-httplib2>=0.2   # per-thread HTTP for concurrent inbox downloads
 #   ANTHROPIC_API_KEY -> anthropic   |   OPENAI_API_KEY -> openai
 anthropic>=0.49
 openai>=1.40
+# Payments (one-time unlock via Stripe Checkout):
+stripe>=9.0
