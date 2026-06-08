@@ -133,12 +133,14 @@ def _get_client() -> Tuple[Optional[str], object]:
     if provider is None:
         return None, None
     try:
+        # Short timeout + no retries so one stuck call can't hang a whole scan
+        # (the SDK default timeout is ~10 min). We fail open per-email anyway.
         if provider == "anthropic":
             import anthropic
-            _client = anthropic.Anthropic()
+            _client = anthropic.Anthropic(timeout=20.0, max_retries=0)
         else:
             import openai
-            _client = openai.OpenAI()
+            _client = openai.OpenAI(timeout=20.0, max_retries=0)
     except ImportError:
         return None, None
     _provider = provider

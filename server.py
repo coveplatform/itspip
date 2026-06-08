@@ -258,7 +258,8 @@ def _deep_scan_worker(job_id: str, creds_dict: dict, email: str) -> None:
         WORKERS = 2
 
         def _download_chunk(chunk):
-            http = AuthorizedHttp(creds, http=httplib2.Http())
+            # 30s socket timeout so a stuck connection can't freeze the scan.
+            http = AuthorizedHttp(creds, http=httplib2.Http(timeout=30))
 
             def _cb(request_id, response, exception):
                 with lock:
@@ -289,7 +290,12 @@ def _deep_scan_worker(job_id: str, creds_dict: dict, email: str) -> None:
             batch = service.new_batch_http_request(callback=_cb)
             for mid in chunk:
                 batch.add(service.users().messages().get(userId="me", id=mid, format="raw"))
-            batch.execute(http=http)
+            try:
+                batch.execute(http=http)
+            except Exception:
+                # A failed/timed-out batch must not kill the whole scan; the
+                # callbacks that did fire already recorded their results.
+                pass
 
         chunks = [ids[i:i + BATCH] for i in range(0, len(ids), BATCH)]
         if chunks:
