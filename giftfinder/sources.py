@@ -6,6 +6,7 @@
             still local: messages are fetched straight to your machine and
             never sent anywhere.
 """
+import base64
 import email
 import imaplib
 import mailbox
@@ -93,6 +94,69 @@ def _to_email(msg) -> Email:
 def email_from_bytes(raw: bytes) -> Email:
     """Parse a raw RFC822 message (e.g. a Gmail API `raw` payload) into an Email."""
     return _to_email(email.message_from_bytes(raw))
+
+
+# --- Lightweight Gmail API parsing (format=full) --------------------------
+# Pull only the text parts; attachments/images are referenced by attachmentId
+# and carry no inline `data`, so they are never downloaded. Far lighter than
+# format=raw, which streams the entire message including megabytes of images.
+
+def _b64url(data: str) -> bytes:
+    if not data:
+        return b""
+    pad = "=" * (-len(data) % 4)
+    try:
+        return base64.urlsafe_b64decode(data + pad)
+    except Exception:
+        return b""
+
+
+def _payload_headers(payload) -> dict:
+    return {
+        (h.get("name") or "").lower(): h.get("value") or ""
+        for h in (payload.get("headers") or [])
+    }
+
+
+def _collect_text(part, out, depth: int = 0) -> None:
+    """Recursively gather text from a Gmail payload tree, skipping attachments."""
+    if part is None or depth > 25:
+        return
+    sub = part.get("parts")
+    if sub:
+        for p in sub:
+            _collect_text(p, out, depth + 1)
+        return
+    data = (part.get("body") or {}).get("data")
+    if not data:  # attachment (attachmentId) or empty — no bytes here, skip
+        return
+    mime = part.get("mimeType", "")
+    if mime == "text/plain":
+        out.append(_b64url(data).decode("utf-8", "replace"))
+    elif mime == "text/html":
+        out.append(_strip_html(_b64url(data).decode("utf-8", "replace")))
+
+
+def email_from_gmail(msg) -> Email:
+    """Build an Email from a Gmail API message dict fetched with format=full."""
+    payload = msg.get("payload") or {}
+    headers = _payload_headers(payload)
+    parts: list = []
+    _collect_text(payload, parts)
+    date = None
+    if headers.get("date"):
+        try:
+            date = parsedate_to_datetime(headers["date"])
+        except Exception:
+            date = None
+    return Email(
+        subject=_header_str(headers.get("subject")),
+        sender=_header_str(headers.get("from")),
+        date=date,
+        body="\n".join(p for p in parts if p),
+        message_id=headers.get("message-id", "") or "",
+        recipient=_header_str(headers.get("to")),
+    )
 
 
 def iter_mbox(path: str) -> Iterator[Email]:

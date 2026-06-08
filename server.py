@@ -24,7 +24,7 @@ from starlette.middleware.sessions import SessionMiddleware
 import store
 from giftfinder.detect import detect, redemption_brand
 from giftfinder.report import dedupe
-from giftfinder.sources import email_from_bytes, iter_mbox
+from giftfinder.sources import email_from_bytes, email_from_gmail, iter_mbox
 from giftfinder.verify import active_model, active_provider, verification_enabled, verify_finding
 
 os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
@@ -172,11 +172,10 @@ def _run_gmail_scan(creds_dict: dict, limit: int = GMAIL_SCAN_LIMIT) -> list:
             msg = (
                 service.users()
                 .messages()
-                .get(userId="me", id=ref["id"], format="raw")
+                .get(userId="me", id=ref["id"], format="full")
                 .execute()
             )
-            raw = base64.urlsafe_b64decode(msg["raw"].encode("utf-8"))
-            em = email_from_bytes(raw)
+            em = email_from_gmail(msg)
             f = _detect(em)
             if f:
                 findings.append(f)
@@ -254,8 +253,9 @@ def _deep_scan_worker(job_id: str, creds_dict: dict, email: str) -> None:
         #    inline; only the tiny Finding objects survive. A few batches run
         #    concurrently, each on its own AuthorizedHttp (the service is only used
         #    to build thread-safe request objects).
-        BATCH = 25
-        WORKERS = 2
+        # Text-only fetch is ~5–10x lighter than raw, so we can run hotter.
+        BATCH = 40
+        WORKERS = 6
 
         def _download_chunk(chunk):
             # 30s socket timeout so a stuck connection can't freeze the scan.
@@ -264,10 +264,9 @@ def _deep_scan_worker(job_id: str, creds_dict: dict, email: str) -> None:
             def _cb(request_id, response, exception):
                 with lock:
                     job["scanned"] += 1
-                if exception is None and response and "raw" in response:
+                if exception is None and response and response.get("payload"):
                     try:
-                        raw = base64.urlsafe_b64decode(response["raw"].encode("utf-8"))
-                        em = email_from_bytes(raw)
+                        em = email_from_gmail(response)  # text only, no attachments
                         rb = redemption_brand(em)
                         if rb:
                             with lock:
@@ -289,7 +288,7 @@ def _deep_scan_worker(job_id: str, creds_dict: dict, email: str) -> None:
 
             batch = service.new_batch_http_request(callback=_cb)
             for mid in chunk:
-                batch.add(service.users().messages().get(userId="me", id=mid, format="raw"))
+                batch.add(service.users().messages().get(userId="me", id=mid, format="full"))
             try:
                 batch.execute(http=http)
             except Exception:
