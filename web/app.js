@@ -358,9 +358,9 @@
     // tiers
     renderTiers(data.tiers);
 
-    // reset paywall/banner state
+    // reset paywall/banner state (a fresh teaser is locked + unpaid)
     $("#paywall").style.display = "";
-    $("#unlocked-banner").hidden = false;
+    $("#unlocked-banner").hidden = true;
     $("#unlocked-banner").classList.remove("show");
 
     sec.scrollIntoView({ behavior: "smooth" });
@@ -575,6 +575,15 @@
     history.replaceState({}, "", location.pathname);
     toast("Payment received — unlocking your stash! 🎉");
     showUnlocked(sid);
+  } else if (params.get("dig")) {
+    // backed out of Stripe checkout — bring them back to their teaser
+    const sid = params.get("dig");
+    history.replaceState({}, "", location.pathname);
+    toast("Payment cancelled — your stash is still waiting 🐿️");
+    fetch("/api/scan/result/" + sid)
+      .then((r) => r.json())
+      .then((data) => { if (data && !data.error) renderTeaser(data); })
+      .catch(() => {});
   } else if (params.get("gmail") === "unconfigured") {
     history.replaceState({}, "", location.pathname);
     toast("Gmail isn't set up on this server yet — see GMAIL_SETUP.md.");
