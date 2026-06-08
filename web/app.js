@@ -86,7 +86,7 @@
      The dig flow
      ============================================================ */
   let CURRENT = null; // { scan_id, ... }
-  let CHOSEN = "pro"; // default-selected tier (the upsell)
+  let CHOSEN = "once"; // the single one-time unlock
 
   const SCAN_MSGS = [
     "Cashew is rummaging…",
@@ -367,7 +367,7 @@
   }
 
   function renderTiers(tiers) {
-    const order = ["once", "pro", "forever"];
+    const order = ["once"];
     const wrap = $("#tiers");
     wrap.innerHTML = order
       .map((key) => {

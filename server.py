@@ -84,8 +84,6 @@ AVG_STASH = 175
 # charge for real (see _unlock below).
 TIERS = {
     "once": {"label": "Unlock this dig", "price": "$4", "blurb": "See every brand + exactly how to claim each one."},
-    "pro": {"label": "Cashew Pro", "price": "$9/mo", "blurb": "Unlock everything + Cashew watches your inbox 24/7, squeaks before anything expires, and keeps a tidy redeem checklist.", "recommended": True},
-    "forever": {"label": "Forever burrow", "price": "$49", "blurb": "Unlock + lifetime monitoring. One acorn, forever."},
 }
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -739,7 +737,6 @@ async def unlock(scan_id: str, request: Request):
         "items": items,
         "total": round(sum(i["amount"] or 0 for i in items), 2),
         "currency": items[0]["currency"] if items else "USD",
-        "monitoring": tier in ("pro", "forever"),
     }
 
 
