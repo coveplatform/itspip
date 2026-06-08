@@ -196,6 +196,7 @@ def verify_finding(email: Email, finding: Finding) -> Optional[Finding]:
     verification is unavailable or errors, the original finding is returned
     unchanged — we never drop real money over a transient API hiccup.
     """
+    global _disabled
     if _disabled:
         return finding
     provider, client = _get_client()
@@ -230,7 +231,6 @@ def verify_finding(email: Email, finding: Finding) -> Optional[Finding]:
     try:
         verdict = _ask_anthropic(client, user) if provider == "anthropic" else _ask_openai(client, user)
     except Exception as e:  # noqa: BLE001 — fail open, keep the keyword verdict
-        global _disabled
         name = type(e).__name__
         status = getattr(e, "status_code", None)
         if name == "AuthenticationError" or status in (401, 403):
