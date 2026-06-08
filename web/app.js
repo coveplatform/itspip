@@ -316,23 +316,29 @@
     if (tag) tag.style.display = data.source === "gmail" ? "none" : "";
 
     const kicker = sec.querySelector(".res-kicker");
+    const tryBtn = $("#try-another");
+    const resPip = sec.querySelector(".res-pip");
 
     if (data.empty || data.count === 0) {
       $("#result-grid").innerHTML = "";
       $("#paywall").style.display = "none";
       $("#unlocked-banner").hidden = true;
+      if (resPip) resPip.src = "pip-empty.png";    // sad empty-handed Cashew
       if (kicker) kicker.style.display = "none";   // don't claim "came back with something!"
       sec.querySelector(".results-head h2").textContent =
         "Cashew dug around but came up empty this time";
       $("#res-total").parentElement.style.display = "none";
       $("#res-sub").innerHTML =
         data.source === "gmail"
-          ? "No gift cards or store credit turned up in this inbox. Try a different Gmail account, or dig again later as new emails arrive. 🐿️"
+          ? "No gift cards or store credit turned up in this inbox. Got another Gmail? Dig that one too. 🐿️"
           : "Nothing here — try the sample dig to see Cashew in action.";
+      if (tryBtn) tryBtn.hidden = data.source !== "gmail";
       sec.scrollIntoView({ behavior: "smooth" });
       return;
     }
+    if (resPip) resPip.src = "pip.png";            // normal Cashew when there's a haul
     if (kicker) kicker.style.display = "";
+    if (tryBtn) tryBtn.hidden = true;
     $("#res-total").parentElement.style.display = "";
 
     $("#res-count").textContent = data.count;
@@ -445,6 +451,12 @@
   }
 
   $("#unlock-btn") && $("#unlock-btn").addEventListener("click", unlock);
+
+  // "Dig a different Gmail" on the empty screen → straight to Google's account
+  // chooser so they can pick another inbox.
+  $("#try-another") && $("#try-another").addEventListener("click", () => {
+    window.location.href = "/auth/google/start";
+  });
 
   /* ---- toast ---- */
   function toast(text) {
