@@ -315,20 +315,24 @@
     const tag = sec.querySelector(".sample-tag");
     if (tag) tag.style.display = data.source === "gmail" ? "none" : "";
 
+    const kicker = sec.querySelector(".res-kicker");
+
     if (data.empty || data.count === 0) {
       $("#result-grid").innerHTML = "";
       $("#paywall").style.display = "none";
       $("#unlocked-banner").hidden = true;
+      if (kicker) kicker.style.display = "none";   // don't claim "came back with something!"
       sec.querySelector(".results-head h2").textContent =
         "Cashew dug around but came up empty this time";
       $("#res-total").parentElement.style.display = "none";
       $("#res-sub").innerHTML =
         data.source === "gmail"
-          ? "Your inbox is squeaky clean (or your stash is hiding under a different search). Cashew will keep watch! 🐿️"
+          ? "No gift cards or store credit turned up in this inbox. Try a different Gmail account, or dig again later as new emails arrive. 🐿️"
           : "Nothing here — try the sample dig to see Cashew in action.";
       sec.scrollIntoView({ behavior: "smooth" });
       return;
     }
+    if (kicker) kicker.style.display = "";
     $("#res-total").parentElement.style.display = "";
 
     $("#res-count").textContent = data.count;
@@ -431,9 +435,8 @@
     const banner = $("#unlocked-banner");
     banner.hidden = false;
     banner.classList.add("show");
-    $("#ub-note").textContent = data.monitoring
-      ? "Every brand revealed below — and Cashew's now watching your inbox for new stashes. 🐿️"
-      : "Every brand + how to claim it is revealed below.";
+    $("#ub-note").textContent =
+      "Every brand + how to claim it is revealed below. Dig again anytime to catch new stashes. 🐿️";
     $("#res-sub").innerHTML =
       "All <b>" + data.items.length + "</b> stashes unlocked — go spend " +
       money(data.total, data.currency) + " you forgot you had!";
