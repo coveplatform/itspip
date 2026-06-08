@@ -486,12 +486,10 @@
     btn.disabled = true;
     btn.textContent = "connecting…";
 
-    // already connected this session? scan straight away. otherwise → consent.
-    let connected = false;
+    // Make sure Gmail OAuth is configured on the server.
     try {
       const m = await (await fetch("/api/me")).json();
-      connected = m.connected;
-      if (!m.configured && !connected) {
+      if (!m.configured) {
         btn.disabled = false;
         btn.innerHTML = digLabel();
         toast("Gmail isn't set up on this server yet — set GOOGLE_CLIENT_ID/SECRET (GMAIL_SETUP.md).");
@@ -499,13 +497,10 @@
       }
     } catch (e) {}
 
-    if (connected) {
-      startScan(email);
-      btn.disabled = false;
-      btn.innerHTML = digLabel();
-    } else {
-      window.location.href = "/auth/google/start";
-    }
+    // Always send the user through Google's account chooser so THEY pick which
+    // Gmail to dig — never silently reuse a previous connection. (Handles people
+    // with multiple Gmail accounts.) The typed email pre-selects the right one.
+    window.location.href = "/auth/google/start?hint=" + encodeURIComponent(email);
   }
 
   function digLabel() {

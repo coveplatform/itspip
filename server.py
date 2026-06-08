@@ -642,9 +642,18 @@ def google_start(request: Request):
     flow = Flow.from_client_config(
         _client_config(), scopes=GMAIL_SCOPES, redirect_uri=OAUTH_REDIRECT
     )
-    auth_url, state = flow.authorization_url(
-        access_type="offline", include_granted_scopes="true", prompt="consent"
+    # Always show Google's account chooser (+ consent) so the user explicitly
+    # picks WHICH Gmail to dig — never silently reuse a prior connection. The
+    # typed email is passed as a hint so the right account is pre-selected.
+    hint = request.query_params.get("hint", "").strip()
+    auth_kwargs = dict(
+        access_type="offline",
+        include_granted_scopes="true",
+        prompt="select_account consent",
     )
+    if hint:
+        auth_kwargs["login_hint"] = hint
+    auth_url, state = flow.authorization_url(**auth_kwargs)
     request.session["oauth_state"] = state
     # PKCE: the library put a code_challenge in the URL, so we must send the
     # matching verifier back at token-exchange time. Stash it in the session.
