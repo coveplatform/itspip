@@ -228,6 +228,12 @@
               stopWords();
               overlay.hidden = true;
               prog.hidden = true;
+              if (p.reauth) {
+                // Gmail token expired/revoked — send them back through consent.
+                toast("Reconnecting your Gmail… 🐿️");
+                setTimeout(() => { window.location.href = "/auth/google/start"; }, 1200);
+                return;
+              }
               toast("Scan hiccup: " + p.error);
               return;
             }

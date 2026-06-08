@@ -313,7 +313,12 @@ def _deep_scan_worker(job_id: str, creds_dict: dict, email: str) -> None:
         job["found"] = len(items)
         job["done"] = True
     except Exception as e:  # noqa: BLE001
-        job["error"] = str(e)
+        msg = str(e)
+        if "invalid_grant" in msg or "expired or revoked" in msg.lower():
+            job["reauth"] = True
+            job["error"] = "Your Gmail connection expired — reconnect to dig again."
+        else:
+            job["error"] = msg
         job["done"] = True
 
 
@@ -524,6 +529,7 @@ async def scan_start(request: Request):
         "scanned": 0, "total": 0, "found": 0, "done": False,
         "error": None, "scan_id": None, "started": time.time(),
         "finds": [],  # [{amount, currency}] streamed live for the dopamine pops
+        "reauth": False,  # set when the Gmail token is dead → send user to reconnect
     }
     threading.Thread(
         target=_deep_scan_worker, args=(job_id, creds, email), daemon=True
@@ -544,6 +550,7 @@ def scan_progress(job_id: str):
         "error": job["error"],
         "scan_id": job["scan_id"],
         "finds": job["finds"],
+        "reauth": job.get("reauth", False),
     }
 
 
