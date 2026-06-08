@@ -640,8 +640,17 @@ def google_callback(request: Request):
         _client_config(), scopes=GMAIL_SCOPES, redirect_uri=OAUTH_REDIRECT, state=state
     )
     flow.code_verifier = request.session.get("code_verifier")
+    # Behind a TLS-terminating proxy (Render/Vercel) the request arrives over
+    # http, which oauthlib rejects ("OAuth 2 MUST utilize https"). Rebuild the
+    # callback URL on the canonical OAUTH_REDIRECT (https) + the incoming query.
+    import urllib.parse as _url
+    incoming = _url.urlsplit(str(request.url))
+    base = _url.urlsplit(OAUTH_REDIRECT)
+    auth_response = _url.urlunsplit(
+        (base.scheme, base.netloc, base.path, incoming.query, "")
+    )
     try:
-        flow.fetch_token(authorization_response=str(request.url))
+        flow.fetch_token(authorization_response=auth_response)
     except Exception as e:
         import traceback
         traceback.print_exc()
