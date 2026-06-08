@@ -119,13 +119,23 @@ def _payload_headers(payload) -> dict:
 
 
 def _collect_text(part, out, depth: int = 0) -> None:
-    """Recursively gather text from a Gmail payload tree, skipping attachments."""
+    """Recursively gather text from a Gmail payload tree, skipping attachments.
+
+    For multipart/alternative we take only ONE representation, preferring the
+    small text/plain over the (often huge) text/html — big memory + speed win on
+    marketing emails.
+    """
     if part is None or depth > 25:
         return
     sub = part.get("parts")
     if sub:
-        for p in sub:
-            _collect_text(p, out, depth + 1)
+        if part.get("mimeType") == "multipart/alternative":
+            plain = next((p for p in sub if p.get("mimeType") == "text/plain"), None)
+            chosen = plain or next((p for p in sub if p.get("mimeType") == "text/html"), None)
+            _collect_text(chosen or sub[0], out, depth + 1)
+        else:
+            for p in sub:
+                _collect_text(p, out, depth + 1)
         return
     data = (part.get("body") or {}).get("data")
     if not data:  # attachment (attachmentId) or empty — no bytes here, skip
@@ -153,7 +163,7 @@ def email_from_gmail(msg) -> Email:
         subject=_header_str(headers.get("subject")),
         sender=_header_str(headers.get("from")),
         date=date,
-        body="\n".join(p for p in parts if p),
+        body="\n".join(p for p in parts if p)[:20000],  # cap pathological bodies
         message_id=headers.get("message-id", "") or "",
         recipient=_header_str(headers.get("to")),
     )

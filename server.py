@@ -60,18 +60,18 @@ if OAUTH_REDIRECT.startswith("http://"):
 GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 # Deliberately wide net — recall over precision. Gmail searches the full text
 # of every email server-side; the detector filters false positives afterwards.
-GMAIL_QUERY = " OR ".join(
+# Focused on high-signal gift-card / store-credit language. Broad terms like
+# "refund", "redeem", "credited", "cashback", "points", "balance", "you've got"
+# were dropped — they matched a huge slice of the inbox (thousands of non-card
+# emails) for little gain. Tighter query = fewer downloads = fits memory, faster,
+# and higher precision. Override with GMAIL_QUERY env to widen again.
+GMAIL_QUERY = os.environ.get("GMAIL_QUERY") or " OR ".join(
     f'"{t}"' if " " in t else t
     for t in [
         "gift card", "e-gift", "egift", "egift card", "gift certificate",
-        "gift voucher", "voucher", "e-voucher", "digital gift", "evoucher",
+        "gift voucher", "e-voucher", "evoucher", "digital gift card",
         "store credit", "account credit", "merchandise credit", "travel credit",
-        "wallet credit", "in-store credit", "credit balance", "your balance",
-        "available balance", "remaining balance", "you earned", "you've earned",
-        "reward credit", "rewards balance", "bonus credit", "in points",
-        "points balance", "cashback", "cash back", "loyalty points",
-        "added to your account", "added to your wallet", "credited to your",
-        "you've got", "redeem", "refund", "credited",
+        "in-store credit", "reward credit", "bonus credit", "refund credit",
     ]
 )
 # Launch-day social-proof seed for the "early diggers" counter.
