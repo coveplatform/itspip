@@ -198,6 +198,10 @@ _SCAN_JOBS: dict = {}
 # GMAIL_DEEP=1 reads EVERY message (slow on big inboxes). =0 uses Gmail search
 # to grab only money-bearing mail (fast, finds the same stashes).
 GMAIL_DEEP = os.environ.get("GMAIL_DEEP", "0") == "1"
+# Cap how many money-matching emails one deep scan pulls (newest first). A small
+# instance can't churn a whole huge inbox; most forgotten cards are recent anyway.
+# 0 = no cap (only safe on a larger instance). Raise it if you bump Render's RAM.
+GMAIL_MAX = int(os.environ.get("GMAIL_MAX", "2000"))
 
 
 def _deep_scan_worker(job_id: str, creds_dict: dict, email: str) -> None:
@@ -234,8 +238,10 @@ def _deep_scan_worker(job_id: str, creds_dict: dict, email: str) -> None:
             page_token = listing.get("nextPageToken")
             if not page_token:
                 break
+        if GMAIL_MAX and len(ids) > GMAIL_MAX:
+            ids = ids[:GMAIL_MAX]  # newest first — scan the most recent N
         job["total"] = len(ids)
-        print(f"[pip] deep={GMAIL_DEEP} candidates={len(ids)}", flush=True)
+        print(f"[pip] deep={GMAIL_DEEP} candidates={len(ids)} (cap={GMAIL_MAX})", flush=True)
 
         lock = threading.Lock()
         findings = []
@@ -248,8 +254,8 @@ def _deep_scan_worker(job_id: str, creds_dict: dict, email: str) -> None:
         #    inline; only the tiny Finding objects survive. A few batches run
         #    concurrently, each on its own AuthorizedHttp (the service is only used
         #    to build thread-safe request objects).
-        BATCH = 50
-        WORKERS = 3
+        BATCH = 25
+        WORKERS = 2
 
         def _download_chunk(chunk):
             http = AuthorizedHttp(creds, http=httplib2.Http())
