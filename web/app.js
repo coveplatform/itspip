@@ -422,16 +422,17 @@
 
   // After returning from Stripe (success_url …/?unlocked=<scan_id>), poll until
   // the webhook has marked the scan paid, then reveal the full results.
-  function showUnlocked(scanId, tries) {
+  function showUnlocked(scanId, tries, sess) {
     tries = tries || 0;
     const sec = $("#results");
     sec.hidden = false;
-    fetch("/api/scan/unlocked/" + scanId)
+    const q = sess ? "?s=" + encodeURIComponent(sess) : "";
+    fetch("/api/scan/unlocked/" + scanId + q)
       .then((r) => r.json())
       .then((data) => {
         if (data.ok === false) { toast("Couldn't load your unlock — refresh in a moment."); return; }
         if (!data.paid) {
-          if (tries < 20) { setTimeout(() => showUnlocked(scanId, tries + 1), 1200); return; }
+          if (tries < 20) { setTimeout(() => showUnlocked(scanId, tries + 1, sess), 1200); return; }
           toast("Payment is confirming — refresh in a few seconds. 🐿️");
           return;
         }
@@ -572,9 +573,10 @@
   } else if (params.get("unlocked")) {
     // returning from a successful Stripe payment
     const sid = params.get("unlocked");
+    const sess = params.get("s") || "";
     history.replaceState({}, "", location.pathname);
     toast("Payment received — unlocking your stash! 🎉");
-    showUnlocked(sid);
+    showUnlocked(sid, 0, sess);
   } else if (params.get("dig")) {
     // backed out of Stripe checkout — bring them back to their teaser
     const sid = params.get("dig");

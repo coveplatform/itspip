@@ -772,7 +772,7 @@ async def unlock(scan_id: str, request: Request):
                 "quantity": 1,
             }],
             metadata={"scan_id": scan_id, "tier": tier},
-            success_url=f"{SITE_ORIGIN}/?unlocked={scan_id}",
+            success_url=f"{SITE_ORIGIN}/?unlocked={scan_id}&s={{CHECKOUT_SESSION_ID}}",
             cancel_url=f"{SITE_ORIGIN}/?dig={scan_id}",
         )
     except Exception as e:  # noqa: BLE001
@@ -793,23 +793,41 @@ async def stripe_webhook(request: Request):
         event = stripe.Webhook.construct_event(payload, sig, STRIPE_WEBHOOK_SECRET)
     except Exception:  # bad signature / malformed
         return JSONResponse({"ok": False}, status_code=400)
-    if event.get("type") == "checkout.session.completed":
-        meta = (event["data"]["object"].get("metadata") or {})
-        scan_id = meta.get("scan_id")
-        if scan_id:
-            store.mark_paid(scan_id, meta.get("tier") or "once")
+    # NOTE: Stripe objects use bracket access, NOT .get() (which raises here).
+    try:
+        if event["type"] == "checkout.session.completed":
+            meta = event["data"]["object"]["metadata"] or {}
+            scan_id = meta["scan_id"] if "scan_id" in meta else None
+            tier = meta["tier"] if "tier" in meta else "once"
+            if scan_id:
+                store.mark_paid(scan_id, tier)
+    except Exception as e:  # noqa: BLE001 — never 500 the webhook
+        print(f"[cashew] webhook handling error: {e}", flush=True)
     return {"ok": True}
 
 
 @app.get("/api/scan/unlocked/{scan_id}")
-def scan_unlocked(scan_id: str):
-    """After returning from Stripe, the page polls this until the webhook has
-    marked the scan paid, then reveals the full results."""
+def scan_unlocked(scan_id: str, s: str = ""):
+    """After returning from Stripe, the page polls this until the scan is paid,
+    then reveals the full results. If `s` (the Checkout session id) is given and
+    the scan isn't yet flagged, we verify the payment with Stripe directly — so a
+    paid customer is unlocked even if the webhook is delayed or misconfigured."""
     rec = store.get_scan(scan_id)
     if rec is None:
         return JSONResponse({"ok": False, "error": "unknown scan"}, status_code=404)
+    if not rec.get("paid") and s:
+        stripe = _stripe()
+        if stripe is not None:
+            try:
+                sess = stripe.checkout.Session.retrieve(s)
+                meta = sess["metadata"] or {}
+                if sess["payment_status"] == "paid" and meta["scan_id"] == scan_id:
+                    store.mark_paid(scan_id, meta["tier"] if "tier" in meta else "once")
+                    rec = store.get_scan(scan_id)
+            except Exception as e:  # noqa: BLE001
+                print(f"[cashew] session verify error: {e}", flush=True)
     if not rec.get("paid"):
-        return {"ok": True, "paid": False}  # webhook not processed yet — keep polling
+        return {"ok": True, "paid": False}  # not confirmed yet — keep polling
     return _unlocked_payload(scan_id, rec)
 
 
