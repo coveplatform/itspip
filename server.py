@@ -253,9 +253,11 @@ def _deep_scan_worker(job_id: str, creds_dict: dict, email: str) -> None:
         #    inline; only the tiny Finding objects survive. A few batches run
         #    concurrently, each on its own AuthorizedHttp (the service is only used
         #    to build thread-safe request objects).
-        # Text-only fetch is ~5–10x lighter than raw, so we can run hotter.
-        BATCH = 40
-        WORKERS = 6
+        # Text-only fetch is ~10x lighter than raw — keep concurrency modest so
+        # peak memory stays tiny on 512MB; the speed comes from the lighter
+        # payloads, not from many in flight at once.
+        BATCH = 25
+        WORKERS = 3
 
         def _download_chunk(chunk):
             # 30s socket timeout so a stuck connection can't freeze the scan.
@@ -295,6 +297,9 @@ def _deep_scan_worker(job_id: str, creds_dict: dict, email: str) -> None:
                 # A failed/timed-out batch must not kill the whole scan; the
                 # callbacks that did fire already recorded their results.
                 pass
+            finally:
+                import gc
+                gc.collect()  # reclaim each batch's payloads before the next
 
         chunks = [ids[i:i + BATCH] for i in range(0, len(ids), BATCH)]
         if chunks:
